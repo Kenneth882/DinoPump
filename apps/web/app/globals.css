@@ -1,0 +1,27 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #101c16;
+  color: #edf6ee;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 44rem;
+  margin: 12vh auto;
+  padding: 1.5rem;
+}
+h1 {
+  font-size: clamp(3rem, 10vw, 5rem);
+  margin: 1rem 0;
+  color: #b3ec8d;
+}
+p {
+  line-height: 1.6;
+}
+footer {
+  margin-top: 4rem;
+  font-size: 0.875rem;
+  color: #bbcbbf;
+}

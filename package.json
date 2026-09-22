@@ -1,0 +1,37 @@
+{
+  "name": "dinopump",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": "24.x",
+    "pnpm": "10.34.5"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @dinopump/web --filter @dinopump/game-server dev",
+    "build": "pnpm -r build",
+    "typecheck": "tsc --noEmit -p tsconfig.tools.json && pnpm -r typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:stop": "docker compose stop postgres",
+    "db:check": "pnpm --filter @dinopump/database check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "16.3.5",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "prettier": "3.9.8",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.1"
+  }
+}
