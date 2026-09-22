@@ -8,4 +8,6 @@ The market engine is deterministic and server-controlled. AI provides optional n
 
 Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, architecture, data contracts, interface requirements, acceptance criteria, and implementation milestones.
 
+For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
+
 Current status: specification complete; application implementation has not started.
