@@ -54,3 +54,17 @@ For documentation-only work, read the documents being changed and their source s
 - Treat unrun or failing checks as incomplete evidence. Report what ran, the results, and any remaining blocker; never infer that a written acceptance criterion already passes.
 - Keep affected specs and setup instructions aligned with approved changes. Preserve the complete human reference and stable acceptance IDs.
 - Finish with the behavior changed, the relevant spec/AC references, validation performed, and material limitations. A milestone is complete only when its required behavior is demonstrated and its gates pass.
+
+## Agent skills
+
+### Issue tracker
+
+Use GitHub Issues in Kenneth882/DinoPump. Before reading, creating, or updating tickets, read `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage labels. Before triaging incoming issues, read `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use one shared root CONTEXT.md and docs/adr/. Before exploring domain terminology or decisions, read `docs/agents/domain.md`.

@@ -65,4 +65,4 @@ No gameplay tests exist yet. A successful empty Vitest run demonstrates tool sta
 - `packages/game-content`: reserved asset, event, and configuration package.
 - `tests/integration` and `tests/e2e`: locations for future acceptance coverage.
 
-Matt Pocock's skills are installed in the user's agent environment, separately from these project dependencies. Issue-tracker and documentation-workflow configuration is a separate setup task.
+Matt Pocock's skills are installed in the user's agent environment, separately from these project dependencies. Repository workflow configuration is documented in [issue tracker](docs/agents/issue-tracker.md), [triage labels](docs/agents/triage-labels.md), and [domain docs](docs/agents/domain.md).
