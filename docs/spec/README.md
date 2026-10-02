@@ -19,6 +19,10 @@ Before implementation, read [product and scope](product-and-scope.md), the relev
 | Verification and acceptance criteria | [verification.md](verification.md) | 12 |
 | Implementation milestones and completion | [implementation.md](implementation.md) | 13 |
 
+## Implementation tickets
+
+The [remaining MVP ticket index](tickets/README.md) contains the approved, dependency-ordered implementation plan, full ticket reference copies, and links to GitHub Issues. Each ticket lists its specification sections, acceptance criteria (ACs), validation, and blockers. Use GitHub for current status and discussion; keep reference copies aligned when ticket scope or blockers change.
+
 ## Keeping the references aligned
 
 - The focused files are exact extracts, with navigation notes above the source sections. Keep each numbered source section in exactly one focused file.

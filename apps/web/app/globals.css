@@ -8,8 +8,8 @@ body {
   margin: 0;
 }
 main {
-  max-width: 44rem;
-  margin: 12vh auto;
+  max-width: 64rem;
+  margin: 6vh auto;
   padding: 1.5rem;
 }
 h1 {
@@ -24,4 +24,103 @@ footer {
   margin-top: 4rem;
   font-size: 0.875rem;
   color: #bbcbbf;
+}
+.eyebrow,
+.symbol {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.eyebrow,
+.availability {
+  color: #f2cb7a;
+}
+.market {
+  margin-top: 3rem;
+}
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.section-heading h2 {
+  margin-bottom: 0;
+}
+.section-heading span,
+.market-status {
+  color: #bbcbbf;
+}
+.asset-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.asset-card {
+  background: #192b21;
+  border: 1px solid #385342;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+.asset-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.asset-icon {
+  font-size: 2rem;
+}
+.symbol {
+  color: #b3ec8d;
+  font-size: 0.85rem;
+}
+.asset-card h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0;
+}
+.asset-description {
+  color: #bbcbbf;
+  min-height: 3.2em;
+}
+.asset-price {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.75rem;
+  margin-bottom: 0;
+}
+.price-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #bbcbbf;
+}
+button {
+  font: inherit;
+  font-weight: 700;
+  color: #101c16;
+  background: #b3ec8d;
+  border: 0;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 3px solid #f2cb7a;
+  outline-offset: 4px;
+}
+footer p {
+  margin: 0.5rem 0;
+}
+@media (max-width: 540px) {
+  main {
+    margin-top: 1rem;
+    padding: 1rem;
+  }
+  .asset-grid {
+    grid-template-columns: 1fr;
+  }
+  .asset-description {
+    min-height: 0;
+  }
 }

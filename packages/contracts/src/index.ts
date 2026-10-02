@@ -1,2 +1,1 @@
-// Reserved for the contracts implementation. No gameplay behavior exists yet.
-export {};
+export * from "./baseline.js";

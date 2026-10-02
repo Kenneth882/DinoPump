@@ -6,6 +6,8 @@ Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §13, baseline version 1.0. Th
 
 For MVP boundaries, read [product and scope](product-and-scope.md). For package/service structure, read [architecture](architecture.md). For the exact acceptance cases, read [verification](verification.md).
 
+For the approved remaining work, read the [implementation ticket index](tickets/README.md), which links full reference copies and live GitHub issues in dependency order.
+
 Verification: Use the milestone gates and MVP definition of done below. Read the exact cases in [verification](verification.md); this list is a starting point, not a replacement for checking affected behavior.
 
 [Spec index](README.md) · [Agent instructions](../../AGENTS.md)

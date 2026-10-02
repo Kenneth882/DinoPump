@@ -18,6 +18,7 @@ All commands use runtime validation. The server derives player identity from the
 
 ### HTTP surface
 
+- `GET /api/market-baseline`: public read-only introduction content. Return `schemaVersion: 1`, `contentVersion`, `rulesVersion`, and the four `assets` with `symbol`, `name`, `description`, `iconId`, and `initialPriceCents`. Omit rules, event catalogs/schedules, and player/session data. Serve uncached responses. The web app forwards this route to the service at request time and validates the shared response contract; upstream failure, timeout, or malformed content returns HTTP 503 with `MARKET_INFORMATION_UNAVAILABLE` and no fallback prices.
 - `POST /api/session`: create guest identity and session.
 - `POST /api/rooms`: create the active room, or return a clear active-room conflict.
 - `POST /api/rooms/:code/join`: join the lobby or reconnect an existing participant.
