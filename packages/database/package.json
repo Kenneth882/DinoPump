@@ -12,9 +12,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "check": "node --env-file=../../.env --import tsx src/check.ts"
+    "check": "node --env-file=../../.env --import tsx src/check.ts",
+    "migrate": "node --env-file=../../.env --import tsx src/migrate.ts"
   },
   "dependencies": {
+    "@dinopump/contracts": "workspace:*",
+    "@dinopump/game-content": "workspace:*",
     "pg": "8.23.0"
   },
   "devDependencies": {

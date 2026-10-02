@@ -1,4 +1,5 @@
 import { baselineSchema } from "@dinopump/contracts";
+export { buildRoundBaseline } from "./round-baseline.js";
 
 // One authored source for the introduction and future frozen round snapshots.
 // Keep this JSON-compatible. Tune content under a new version; never mutate an active round.
