@@ -19,14 +19,14 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | ID | Required acceptance criterion |
 | --- | --- |
 | AC-01 | Two to eight guests can enter a lobby; a ninth is rejected; an open round rejects new participants. |
-| AC-02 | A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once. |
+| AC-02 | The versioned baseline validates the canonical four assets and all documented gameplay defaults. A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once. |
 | AC-03 | A buy fills the cheapest eligible asks and updates buyer and bot ledgers correctly. At asks D$40.40 and D$40.80, buying 150 units fills 100 and 50 for D$6,080.00. With a D$41.00 protection, buyer cash becomes D$3,920.00. |
 | AC-04 | Selling owned units fills highest eligible bids and transfers the exact cash and units; overselling and underfunded buys have no ledger effects. |
-| AC-05 | Invalid values, unknown assets, unauthenticated commands, and closed-round orders are rejected with stable codes. |
+| AC-05 | Invalid values, unknown assets, unauthenticated commands, and closed-round orders are rejected with stable codes. Invalid baseline assets, defaults, or catalog entries prevent service startup with field-specific validation errors. |
 | AC-06 | Price protection produces correct full, partial, and zero-fill outcomes; no fill violates the submitted protection. |
 | AC-07 | Duplicate requests, including retries after restart, return the original outcome without additional fills; changed payloads with reused IDs fail. |
 | AC-08 | Concurrent submissions are serialized; seeded stress runs preserve cash/unit conservation and all nonnegative-balance invariants. |
-| AC-09 | Nine scheduled events apply exactly once and affect only configured reference prices; generated prose cannot alter state. |
+| AC-09 | Authored catalog effects use known, nonduplicated symbols and integer basis points within configured shock bounds. Nine scheduled events apply exactly once and affect only configured reference prices; generated prose cannot alter state. |
 | AC-10 | Every client receives consistent market state; reconnecting during a fill resolves pending orders and restores the authoritative snapshot. |
 | AC-11 | Closing-boundary orders are handled consistently; rankings match frozen marks; ties share ranks; late commentary cannot change results. |
 | AC-12 | Replaying committed events produces identical balances, holdings, reference/last prices, quotes, and final rankings. |
@@ -36,3 +36,5 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. |
 | AC-17 | The complete join → ready → trade → event → reconnect → results journey passes in two browser sessions and at a 360px viewport. |
 | AC-18 | An eight-client load run meets the stated latency targets and an end-to-end round runs without an LLM key. |
+
+For ticket #1, content/contract tests and browser checks of the read-only introduction support AC-02, AC-05, AC-09, and AC-13 only partially. Verify exact default values and prices, invalid whole-baseline rejection, authored fallback templates, the actual service-to-web path, unavailable/retry states, and the production build without a running service. They do not establish round initialization, scheduling, narration fallback during play, or full live-round acceptance.

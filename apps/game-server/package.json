@@ -10,6 +10,8 @@
     "start": "node --env-file-if-exists=../../.env dist/index.js"
   },
   "dependencies": {
-    "socket.io": "4.8.3"
+    "socket.io": "4.8.3",
+    "@dinopump/contracts": "workspace:*",
+    "@dinopump/game-content": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createGameServer } from "./server.js";
 
 const port = Number(process.env.GAME_SERVER_PORT ?? 3001);
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -6,15 +6,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 
 // Process liveness only. Room commands, Socket.IO, and persistence come later.
-const server = createServer((request, response) => {
-  response.setHeader("Content-Type", "application/json");
-  if (request.method === "GET" && request.url === "/health") {
-    response.end(JSON.stringify({ status: "ok" }));
-    return;
-  }
-  response.statusCode = 404;
-  response.end(JSON.stringify({ error: "NOT_FOUND" }));
-});
+const server = createGameServer();
 
 server.listen(port, "127.0.0.1", () => {
   console.info(`DinoPump service listening on http://127.0.0.1:${port}`);

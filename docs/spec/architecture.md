@@ -27,6 +27,8 @@ These are proposed technology choices. Choose and pin supported versions when im
 | Shared schemas | Runtime-validated TypeScript schemas | HTTP/WebSocket contracts and event versions |
 | Later scaling | Redis and a dedicated queue if needed | Multi-instance fan-out, presence, job coordination |
 
+The shared content package owns the runtime-validated, versioned baseline: all four assets, the authored event catalog, and every documented gameplay default from §4–5 and §10 (timing, player and bot resources, price and quantity bounds, fees, protection, quote offsets/depth, reference impact, and shock limits). Keep narration and operational settings separate. Validate the entire baseline before the service starts listening, including content unused by the introduction; any invalid field rejects the whole baseline with a precise validation error. Never salvage a partial catalog or asset set. Future rounds consume independent, frozen snapshots of this same content.
+
 Redis is optional infrastructure for later scaling. It is not the source of truth and is not required to operate one MVP room. The game service requires a host that supports persistent WebSocket connections; it should not rely on short-lived request handlers for its clock or in-memory room ownership.
 
 ```mermaid

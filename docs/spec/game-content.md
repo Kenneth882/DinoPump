@@ -31,3 +31,14 @@ Example events:
 - “Fossil Finds announces a record dig. Paleontologists demand a recount.”
 
 Each catalog event has fixed affected symbols, integer reference-price changes in basis points, a factual template, and an illustration/icon identifier. Narrative prose is never parsed into market instructions.
+
+The initial authored catalog is content version `1.0`, used with rules version `1.0`:
+
+| Event ID | Example above | Symbol | Reference change | Icon ID |
+| --- | --- | --- | ---: | --- |
+| `fern-herd` | Brachiosaurus herd | FERN | +500 bps | `fern` |
+| `amber-deposits` | Amber deposits | AMBR | +500 bps | `amber` |
+| `volcano-sneeze` | Vent shutdown | VOLC | −500 bps | `volcano` |
+| `fossil-record-dig` | Record dig | BONE | +500 bps | `fossil` |
+
+These are initial balancing values. Content version covers assets, authored event facts, templates, effects, and icon identifiers; rules version covers gameplay defaults and deterministic rules. Later tuning must version the affected content and follow §15 for rule changes. Catalog schemas support multiple distinct affected symbols per event; four catalog entries do not prescribe how the nine-event schedule selects or repeats events.

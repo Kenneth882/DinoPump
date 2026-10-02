@@ -1,13 +1,20 @@
+import { MarketBaseline } from "./market-baseline";
+
 export default function Home() {
   return (
     <main>
-      <p>Pangaea Exchange</p>
+      <p className="eyebrow">Pangaea Exchange</p>
       <h1>DinoPump</h1>
       <p>
-        A prehistoric market game is taking shape. Trading opens in a future
-        update.
+        Welcome to the prehistoric market. Meet the fictional companies you’ll
+        trade in Dino Dollars when the exchange opens.
       </p>
-      <footer>Fictional market game. Virtual currency only.</footer>
+      <p className="availability">Live rounds are not available yet.</p>
+      <MarketBaseline />
+      <footer>
+        <p>Fictional market game. Virtual currency only.</p>
+        <p>Dino Dollars cannot be bought, withdrawn, or redeemed.</p>
+      </footer>
     </main>
   );
 }
