@@ -2,6 +2,8 @@
 
 GitHub issue: [#3](https://github.com/Kenneth882/DinoPump/issues/3). Reference snapshot: October 2, 2026. Follow GitHub for current status, discussion, and evidence; update this copy when scope or blockers change.
 
+Implementation note (October 3, 2026): the original issue below refers to baseline 1.0. The subsequently approved quote identity, replacement, error, and arithmetic decisions are recorded under rules version 1.1 in [the current quote contract](../market-engine.md#quote-generation-contract-rules-version-11). Default funding, prices, offsets, and depth are unchanged. See [the engine API and validation](../../../packages/engine/README.md) for implementation details and evidence limits.
+
 ## What to build
 
 Given a frozen baseline and current finite bot resources, the pure engine produces executable bid/ask ladders with deterministic ordering and fully covered reservations.

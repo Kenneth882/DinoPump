@@ -31,7 +31,7 @@ describe("read-only baseline service and web boundary", () => {
       expect(body).toEqual({
         schemaVersion: 1,
         contentVersion: "1.0",
-        rulesVersion: "1.0",
+        rulesVersion: "1.1",
         assets: loadBaseline().assets,
       });
       const rejected = await fetch(`${origin}/api/market-baseline`, {

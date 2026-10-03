@@ -5,7 +5,7 @@ export { buildRoundBaseline } from "./round-baseline.js";
 // Keep this JSON-compatible. Tune content under a new version; never mutate an active round.
 const authoredBaseline = {
   contentVersion: "1.0",
-  rulesVersion: "1.0",
+  rulesVersion: "1.1",
   assets: [
     {
       symbol: "FERN",

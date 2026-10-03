@@ -1,6 +1,6 @@
 # DinoPump — Project Specification
 
-Version: 1.0  
+Version: 1.1\
 Status: Proposed implementation baseline  
 Product: A fictional, dinosaur-themed multiplayer market game  
 Working title: DinoPump
@@ -68,7 +68,7 @@ Example events:
 
 Each catalog event has fixed affected symbols, integer reference-price changes in basis points, a factual template, and an illustration/icon identifier. Narrative prose is never parsed into market instructions.
 
-The initial authored catalog is content version `1.0`, used with rules version `1.0`:
+The initial authored catalog is content version `1.0`, used with rules version `1.1`:
 
 | Event ID | Example above | Symbol | Reference change | Icon ID |
 | --- | --- | --- | ---: | --- |
@@ -151,6 +151,17 @@ Initial defaults:
 Scheduled events apply their catalog basis-point changes to reference prices, then rebuild quotes. Last-trade prices change only on fills. These are intentionally simple game-balancing rules, not a model of real-world markets.
 
 The bot is a real ledger participant with finite resources. Trades transfer existing cash and units; liquidity must not be fabricated during settlement. Resource exhaustion produces partial fills or unavailable quotes. No mid-round replenishment is part of the MVP.
+
+### Quote generation contract (rules version 1.1)
+
+Rules version `1.1` specifies deterministic quote identity, replacement, and exact arithmetic; the default prices, offsets, depth, and funding above are unchanged. New rounds freeze this version. Existing round snapshots retain their original rules and are never upgraded in place; this engine rejects unsupported rules versions.
+
+- Initialize quotes from the frozen round's existing bot funding and generation-zero asset state. Initialization generates the first ladder; rebuilding never funds the bot again or reads current authored defaults.
+- Rebuild immutably from total bot cash/holdings and current reference prices. Reservations are derived from the returned quotes, not independent writable balances. Replace the entire old ladder and its reservation summary; do not debit or credit ledger balances for quote replacement.
+- Every successful rebuild increments each asset's generation once, including empty ladders. Repeating the same input reproduces the same result and IDs; only the committed output becomes the next input.
+- Quote IDs use `roundId:symbol:generation:side:level`, with `bid`/`ask` sides and original one-based levels. Creation sequence is a zero-based position within a generation: symbols in ascending order, bids before asks, then original levels. Omitted levels leave gaps. Equal-price levels retain creation order; quote creation sequence is separate from persisted event sequence.
+- Compute quote prices and cash allocation with exact integer arithmetic, including intermediate products. Return only JSON-compatible safe integer numbers; discard out-of-bounds prices before numeric conversion. Allocate the largest covered whole-unit quantity up to the level size, omit zero-unit levels, and continue to subsequent levels/assets with the remaining resources.
+- Invalid state (including unsupported rules, incomplete assets/holdings, unsafe or negative balances, out-of-bounds reference prices, and exhausted generation counters) returns a structured error with a stable code and field path without mutating input. Zero cash or holdings is valid and produces exhausted liquidity, not an integrity error.
 
 ### Determinism and ordering
 
@@ -391,11 +402,13 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | AC-13 | Narrator timeout, invalid JSON, misleading copy rejection, and missing credentials preserve immediate template news and uninterrupted play. |
 | AC-14 | A crash before commit produces no trade; a crash after commit but before broadcast is recovered without duplication. |
 | AC-15 | Restart after missed event deadlines catches up in order; restart after close settles once and rejects new orders. |
-| AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. |
+| AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. Under rules 1.1, replacements preserve ledger totals; identical inputs reproduce quote IDs, generations, and tie ordering; exact integer arithmetic and invalid-state rejection preserve these guarantees. |
 | AC-17 | The complete join → ready → trade → event → reconnect → results journey passes in two browser sessions and at a 360px viewport. |
 | AC-18 | An eight-client load run meets the stated latency targets and an end-to-end round runs without an LLM key. |
 
 For ticket #1, content/contract tests and browser checks of the read-only introduction support AC-02, AC-05, AC-09, and AC-13 only partially. Verify exact default values and prices, invalid whole-baseline rejection, authored fallback templates, the actual service-to-web path, unavailable/retry states, and the production build without a running service. They do not establish round initialization, scheduling, narration fallback during play, or full live-round acceptance.
+
+For ticket #3, pure-engine checks support AC-02, AC-08, and AC-16: frozen bot funding, all initial ladders, exact arithmetic, exhausted resources, deterministic replacements/IDs, equal-price ordering, invalid-state errors, and seeded reservation/conservation checks. They do not establish order settlement, concurrent service serialization, or full round acceptance.
 
 ## 13. Implementation milestones
 
