@@ -76,7 +76,7 @@ it("persists exact funding, versions and nine fixed events before opening (AC-02
   expect(created).toMatchObject({
     roundId: input.roundId,
     seed: 42,
-    rulesVersion: "1.0",
+    rulesVersion: "1.1",
     configVersion: "1.0",
     catalogVersion: "1.0",
     opensAtMs: 1_800_000_005_000,

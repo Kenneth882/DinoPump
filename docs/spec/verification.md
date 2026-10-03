@@ -2,7 +2,7 @@
 
 Read before selecting tests or declaring a feature complete. Use the original AC identifiers in test plans and reports.
 
-Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §12, baseline version 1.0. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
+Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §12, baseline version 1.1. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
 
 Read the feature document that owns the behavior under test. For milestone gates and release completion, read [implementation](implementation.md).
 
@@ -33,8 +33,10 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | AC-13 | Narrator timeout, invalid JSON, misleading copy rejection, and missing credentials preserve immediate template news and uninterrupted play. |
 | AC-14 | A crash before commit produces no trade; a crash after commit but before broadcast is recovered without duplication. |
 | AC-15 | Restart after missed event deadlines catches up in order; restart after close settles once and rejects new orders. |
-| AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. |
+| AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. Under rules 1.1, replacements preserve ledger totals; identical inputs reproduce quote IDs, generations, and tie ordering; exact integer arithmetic and invalid-state rejection preserve these guarantees. |
 | AC-17 | The complete join → ready → trade → event → reconnect → results journey passes in two browser sessions and at a 360px viewport. |
 | AC-18 | An eight-client load run meets the stated latency targets and an end-to-end round runs without an LLM key. |
 
 For ticket #1, content/contract tests and browser checks of the read-only introduction support AC-02, AC-05, AC-09, and AC-13 only partially. Verify exact default values and prices, invalid whole-baseline rejection, authored fallback templates, the actual service-to-web path, unavailable/retry states, and the production build without a running service. They do not establish round initialization, scheduling, narration fallback during play, or full live-round acceptance.
+
+For ticket #3, pure-engine checks support AC-02, AC-08, and AC-16: frozen bot funding, all initial ladders, exact arithmetic, exhausted resources, deterministic replacements/IDs, equal-price ordering, invalid-state errors, and seeded reservation/conservation checks. They do not establish order settlement, concurrent service serialization, or full round acceptance.

@@ -10,7 +10,7 @@ Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, archite
 
 For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
 
-Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. Live gameplay and narration are not implemented.
+Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine now generates covered deterministic bot quote ladders from frozen funding and current resources. Live trading and narration are not implemented.
 
 ## Local setup
 
@@ -36,7 +36,7 @@ The root `.env` contains synthetic local database credentials and is ignored by 
 
 ## Baseline content and service connection
 
-`packages/game-content/src/index.ts` owns the baseline: content version `1.0`, rules version `1.0`, and the four approved event effects (FERN +500, AMBR +500, VOLC −500, BONE +500 basis points). `loadBaseline()` validates the entire dataset and returns an independent copy. Internal round creation persists its own frozen snapshot and nine-event schedule. Tune authored content under a new content version and follow the specification's rules-version requirements when changing gameplay. Keep authored facts/templates consistent with effects; prose is never interpreted as an instruction.
+`packages/game-content/src/index.ts` owns the baseline: content version `1.0`, rules version `1.1`, and the four approved event effects (FERN +500, AMBR +500, VOLC −500, BONE +500 basis points). `loadBaseline()` validates the entire dataset and returns an independent copy. Internal round creation persists its own frozen snapshot and nine-event schedule. Tune authored content under a new content version and follow the specification's rules-version requirements when changing gameplay. Keep authored facts/templates consistent with effects; prose is never interpreted as an instruction.
 
 Run `pnpm db:verify` for disposable PostgreSQL migration, write/readback, rollback, retry, and frozen-configuration checks. It uses a separate temporary database on port 55433 and never resets the development database. See [frozen round storage](docs/database.md) for migration readiness, API inputs, sequence storage, seeded selection, and validation limits.
 
@@ -54,7 +54,7 @@ The game service exposes `GET /api/market-baseline`. Its public response contain
 | `pnpm typecheck`    | Check application, package, and test/tool configuration types |
 | `pnpm format:check` | Check formatting without changing files                       |
 | `pnpm format`       | Format implementation files; preserve specification extracts  |
-| `pnpm test`         | Run content/contract and HTTP integration tests               |
+| `pnpm test`         | Run content/contract, engine, and HTTP integration tests      |
 | `pnpm test:e2e`     | Run baseline browser checks against both apps                 |
 | `pnpm check`        | Run lint, formatting, types, Vitest, and production build     |
 | `pnpm db:up`        | Start PostgreSQL and wait for its health check                |
@@ -65,15 +65,15 @@ The game service exposes `GET /api/market-baseline`. Its public response contain
 
 Install the Playwright browser once per machine with `pnpm exec playwright install chromium`. The E2E configuration starts its own web app on port 3000 and game service on port 3001, so stop `pnpm dev` first.
 
-Ticket #1 tests cover canonical prices/defaults, malformed content, the real service-to-web path, and desktop/mobile introduction and retry states. They provide partial supporting evidence for AC-02, AC-05, AC-09, and AC-13. Ticket #2 adds database foundation evidence for AC-02, AC-09, AC-12, and AC-15 through `pnpm db:verify`. Neither suite demonstrates live initialization, scheduled effects, gameplay replay/recovery, or a complete round. Full live-round acceptance remains unverified.
+Ticket #1 tests cover canonical prices/defaults, malformed content, the real service-to-web path, and desktop/mobile introduction and retry states. They provide partial supporting evidence for AC-02, AC-05, AC-09, and AC-13. Ticket #2 adds database foundation evidence for AC-02, AC-09, AC-12, and AC-15 through `pnpm db:verify`. Neither suite demonstrates live initialization, scheduled effects, gameplay replay/recovery, or a complete round. Ticket #3 adds pure-engine evidence for AC-02, AC-08, and AC-16, including 500 seeded quote rebuilds; it does not demonstrate trade settlement, serialized service commands, or live-round acceptance.
 
 ## Workspace
 
 - `apps/web`: Next.js and React app with Socket.IO client dependency.
 - `apps/game-server`: Node/TypeScript service scaffold with Socket.IO installed; realtime commands are not wired yet.
 - `apps/commentary-worker`: reserved TypeScript package; no worker process or provider is implemented.
-- `packages/engine`: reserved framework-independent engine package with no runtime dependencies.
-- `packages/contracts`: shared Zod schemas for baseline content, its public HTTP response, frozen rounds, and baseline recovery.
+- `packages/engine`: framework-independent bot quote initialization/rebuilding with shared runtime contracts; see [engine API](packages/engine/README.md).
+- `packages/contracts`: shared Zod schemas for baseline content, its public HTTP response, frozen rounds, baseline recovery, and bot quote inputs/results.
 - `packages/database`: PostgreSQL migrations, connection check, atomic frozen-round persistence, and initialization recovery reads.
 - `packages/game-content`: validated canonical assets, event facts/templates, and gameplay defaults.
 - `tests/integration` and `tests/e2e`: baseline HTTP/browser checks and locations for future acceptance coverage.

@@ -7,11 +7,11 @@ import {
 } from "../../contracts/src/index.js";
 import { loadBaseline } from "../src/index.js";
 
-describe("baseline 1.0 (supporting AC-02, AC-05, AC-09, AC-13)", () => {
+describe("content 1.0 / rules 1.1 (supporting AC-02, AC-05, AC-09, AC-13)", () => {
   it("pins the canonical assets, prices, versions and all gameplay defaults", () => {
     const baseline = loadBaseline();
     expect(baseline.contentVersion).toBe("1.0");
-    expect(baseline.rulesVersion).toBe("1.0");
+    expect(baseline.rulesVersion).toBe("1.1");
     expect(
       baseline.assets.map(({ symbol, name, initialPriceCents }) => [
         symbol,

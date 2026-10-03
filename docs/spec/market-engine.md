@@ -2,7 +2,7 @@
 
 Read when implementing order validation, price protection, fills, rounding, settlement, liquidity quotes, bot reservations, or command ordering.
 
-Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §5, baseline version 1.0. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
+Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §5, baseline version 1.1. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
 
 For ledger transactions, idempotency, and replay invariants, read [persistence](persistence.md). For valuation, read [round lifecycle](round-lifecycle.md). For order payloads and retry behavior, read [API and recovery](api-and-recovery.md).
 
@@ -49,6 +49,17 @@ Initial defaults:
 Scheduled events apply their catalog basis-point changes to reference prices, then rebuild quotes. Last-trade prices change only on fills. These are intentionally simple game-balancing rules, not a model of real-world markets.
 
 The bot is a real ledger participant with finite resources. Trades transfer existing cash and units; liquidity must not be fabricated during settlement. Resource exhaustion produces partial fills or unavailable quotes. No mid-round replenishment is part of the MVP.
+
+### Quote generation contract (rules version 1.1)
+
+Rules version `1.1` specifies deterministic quote identity, replacement, and exact arithmetic; the default prices, offsets, depth, and funding above are unchanged. New rounds freeze this version. Existing round snapshots retain their original rules and are never upgraded in place; this engine rejects unsupported rules versions.
+
+- Initialize quotes from the frozen round's existing bot funding and generation-zero asset state. Initialization generates the first ladder; rebuilding never funds the bot again or reads current authored defaults.
+- Rebuild immutably from total bot cash/holdings and current reference prices. Reservations are derived from the returned quotes, not independent writable balances. Replace the entire old ladder and its reservation summary; do not debit or credit ledger balances for quote replacement.
+- Every successful rebuild increments each asset's generation once, including empty ladders. Repeating the same input reproduces the same result and IDs; only the committed output becomes the next input.
+- Quote IDs use `roundId:symbol:generation:side:level`, with `bid`/`ask` sides and original one-based levels. Creation sequence is a zero-based position within a generation: symbols in ascending order, bids before asks, then original levels. Omitted levels leave gaps. Equal-price levels retain creation order; quote creation sequence is separate from persisted event sequence.
+- Compute quote prices and cash allocation with exact integer arithmetic, including intermediate products. Return only JSON-compatible safe integer numbers; discard out-of-bounds prices before numeric conversion. Allocate the largest covered whole-unit quantity up to the level size, omit zero-unit levels, and continue to subsequent levels/assets with the remaining resources.
+- Invalid state (including unsupported rules, incomplete assets/holdings, unsafe or negative balances, out-of-bounds reference prices, and exhausted generation counters) returns a structured error with a stable code and field path without mutating input. Zero cash or holdings is valid and produces exhausted liquidity, not an integrity error.
 
 ### Determinism and ordering
 

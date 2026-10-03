@@ -9,6 +9,9 @@
       "import": "./dist/index.js"
     }
   },
+  "dependencies": {
+    "@dinopump/contracts": "workspace:*"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit"

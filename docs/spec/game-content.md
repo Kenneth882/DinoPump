@@ -2,7 +2,7 @@
 
 Read when defining assets, symbols, initial prices, event catalog entries, templates, or theme copy.
 
-Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §3, baseline version 1.0. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
+Source: [PROJECT_SPEC.md](../../PROJECT_SPEC.md), §3, baseline version 1.1. The numbered specification sections below are reproduced verbatim from the human reference; routing notes above them are navigation aids.
 
 For catalog effects and seeded selection, read [events and narration](events-and-narration.md). For price calculations, read [market engine](market-engine.md).
 
@@ -32,7 +32,7 @@ Example events:
 
 Each catalog event has fixed affected symbols, integer reference-price changes in basis points, a factual template, and an illustration/icon identifier. Narrative prose is never parsed into market instructions.
 
-The initial authored catalog is content version `1.0`, used with rules version `1.0`:
+The initial authored catalog is content version `1.0`, used with rules version `1.1`:
 
 | Event ID | Example above | Symbol | Reference change | Icon ID |
 | --- | --- | --- | ---: | --- |
