@@ -1,14 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildRoundBaseline,
-  loadBaseline,
-} from "../../game-content/src/index.js";
-import {
-  executeBuy,
-  executeSell,
-  initializeBotQuotes,
-  rebuildBotQuotes,
-} from "../src/index.js";
+import { executeBuy, executeSell } from "../src/index.js";
 import {
   assetSymbolSchema,
   sellResultSchema,
@@ -16,30 +7,7 @@ import {
   type BuyState,
 } from "../../contracts/src/index.js";
 
-const playerId = "00000000-0000-4000-8000-000000000001";
-const roundId = "00000000-0000-4000-8000-000000000003";
-
-function fixture() {
-  const round = buildRoundBaseline({
-    roundId,
-    seed: 3,
-    configVersion: "1.0",
-    participantIds: [playerId, "00000000-0000-4000-8000-000000000002"],
-    createdAtMs: 0,
-    opensAtMs: 5_000,
-    config: loadBaseline(),
-  });
-  const quotes = initializeBotQuotes(round);
-  if (!quotes.ok) throw new Error(JSON.stringify(quotes));
-  return {
-    market: quotes.state,
-    quotes: quotes.quotes,
-    reservations: quotes.reservations,
-    status: "OPEN" as const,
-    humans: round.initialState.humans,
-    lastPrices: { AMBR: 7500, BONE: 2500, FERN: 4000, VOLC: 10000 },
-  };
-}
+import { fixture, playerId, roundId, replaceQuotes } from "./order-fixture.js";
 
 function command() {
   return {
@@ -51,14 +19,6 @@ function command() {
     quantity: 150,
     protectionPriceCents: 3900,
   };
-}
-
-function replaceQuotes(state: BuyState) {
-  const replacement = rebuildBotQuotes(state.market);
-  if (!replacement.ok) throw new Error(JSON.stringify(replacement));
-  state.market = replacement.state;
-  state.quotes = replacement.quotes;
-  state.reservations = replacement.reservations;
 }
 
 describe("protected sells (AC-04, AC-05, AC-06, AC-08, AC-16 engine evidence)", () => {

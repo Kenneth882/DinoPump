@@ -4,32 +4,8 @@ import {
   type BuyResult,
   type BuyFill,
 } from "@dinopump/contracts";
-import { rebuildBotQuotes } from "./bot-quotes.js";
 
-type Rejection = Extract<BuyResult, { ok: false }>;
-function reject(
-  code: Rejection["code"],
-  path: (string | number)[],
-  message: string,
-): Rejection {
-  return { ok: false, code, issues: [{ path, message }] };
-}
-
-function invalid(
-  code: Rejection["code"],
-  error: { issues: { path: PropertyKey[]; message: string }[] },
-): Rejection {
-  return {
-    ok: false,
-    code,
-    issues: error.issues.map(({ path, message }) => ({
-      path: path.map((part) =>
-        typeof part === "number" ? part : String(part),
-      ),
-      message,
-    })),
-  };
-}
+import { completeOrder, invalid, reject } from "./protected-orders.js";
 
 /** One complete, immutable engine transition; the caller owns commit/broadcast. */
 export function executeBuy(input: unknown, order: unknown): BuyResult {
@@ -135,62 +111,7 @@ export function executeBuy(input: unknown, order: unknown): BuyResult {
   buyer.holdings[command.symbol] = Number(buyerUnits);
   state.market.bot.cashCents = Number(botCash);
   state.market.bot.holdings[command.symbol] -= filledQuantity;
-  const latestFill = fills.at(-1);
-  if (latestFill) {
-    state.lastPrices[command.symbol] = latestFill.priceCents;
-    const asset = state.market.assets.find(
-      (entry) => entry.symbol === command.symbol,
-    )!;
-    const rounded =
-      (BigInt(asset.referencePriceCents) *
-        BigInt(10000 + rules.bot.referenceImpactBpsPerFilledOrder) +
-        5000n) /
-      10000n;
-    asset.referencePriceCents =
-      rounded > BigInt(rules.prices.maxCents)
-        ? rules.prices.maxCents
-        : rounded < BigInt(rules.prices.minCents)
-          ? rules.prices.minCents
-          : Number(rounded);
-  }
-  const replacement = rebuildBotQuotes(state.market);
-  if (!replacement.ok)
-    return {
-      ok: false,
-      code:
-        replacement.code === "QUOTE_GENERATION_EXHAUSTED"
-          ? replacement.code
-          : "INVALID_BUY_STATE",
-      issues: replacement.issues.map((issue) => ({
-        ...issue,
-        path: ["market", ...issue.path],
-      })),
-    };
-  state.market = replacement.state;
-  state.quotes = replacement.quotes;
-  state.reservations = replacement.reservations;
-  return {
-    ok: true,
-    command,
-    state,
-    fills,
-    outcome: {
-      status:
-        filledQuantity === 0
-          ? "NO_LIQUIDITY_WITHIN_PROTECTION"
-          : remainingQuantity === 0
-            ? "FILLED"
-            : "PARTIALLY_FILLED",
-      filledQuantity,
-      remainingQuantity,
-      totalValueCents,
-      averagePrice:
-        filledQuantity === 0
-          ? null
-          : {
-              numeratorCents: totalValueCents,
-              denominatorUnits: filledQuantity,
-            },
-    },
-  };
+  const completed = completeOrder(state, command, fills, "INVALID_BUY_STATE");
+  if (!completed.ok) return completed;
+  return { ...completed, command, fills };
 }
