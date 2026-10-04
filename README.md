@@ -10,7 +10,7 @@ Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, archite
 
 For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
 
-Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine now generates covered deterministic bot quote ladders from frozen funding and current resources. Live trading and narration are not implemented.
+Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys with exact settlement and complete immutable state transitions. Live trading and narration are not implemented.
 
 ## Local setup
 
@@ -72,8 +72,8 @@ Ticket #1 tests cover canonical prices/defaults, malformed content, the real ser
 - `apps/web`: Next.js and React app with Socket.IO client dependency.
 - `apps/game-server`: Node/TypeScript service scaffold with Socket.IO installed; realtime commands are not wired yet.
 - `apps/commentary-worker`: reserved TypeScript package; no worker process or provider is implemented.
-- `packages/engine`: framework-independent bot quote initialization/rebuilding with shared runtime contracts; see [engine API](packages/engine/README.md).
-- `packages/contracts`: shared Zod schemas for baseline content, its public HTTP response, frozen rounds, baseline recovery, and bot quote inputs/results.
+- `packages/engine`: framework-independent bot quote initialization/rebuilding and protected buys with shared runtime contracts; see [engine API](packages/engine/README.md).
+- `packages/contracts`: shared Zod schemas for baseline content, its public HTTP response, frozen rounds, baseline recovery, bot quotes, and protected buy inputs/results.
 - `packages/database`: PostgreSQL migrations, connection check, atomic frozen-round persistence, and initialization recovery reads.
 - `packages/game-content`: validated canonical assets, event facts/templates, and gameplay defaults.
 - `tests/integration` and `tests/e2e`: baseline HTTP/browser checks and locations for future acceptance coverage.
