@@ -6,6 +6,8 @@ GitHub issue: [#4](https://github.com/Kenneth882/DinoPump/issues/4). Reference s
 
 A human buy consumes the cheapest eligible bot asks, returns a complete full/partial/zero-fill outcome, and transfers exact cash and units without violating price protection.
 
+Implementation sequence: [ticket 4 plan](ticket-plans/04-protected-engine-buys-plan.md).
+
 ## Scope and specification
 
 Milestone 2; baseline 1.0. Reuse existing scaffolding and preserve MVP boundaries and frozen-round rules.
