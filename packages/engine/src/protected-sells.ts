@@ -1,18 +1,18 @@
 import {
-  buyCommandSchema,
-  buyStateSchema,
-  type BuyResult,
-  type BuyFill,
+  sellCommandSchema,
+  sellStateSchema,
+  type SellResult,
+  type SellFill,
 } from "@dinopump/contracts";
 
 import { completeOrder, invalid, reject } from "./protected-orders.js";
 
 /** One complete, immutable engine transition; the caller owns commit/broadcast. */
-export function executeBuy(input: unknown, order: unknown): BuyResult {
-  const parsedState = buyStateSchema.safeParse(input);
+export function executeSell(input: unknown, order: unknown): SellResult {
+  const parsedState = sellStateSchema.safeParse(input);
   if (!parsedState.success)
-    return invalid("INVALID_BUY_STATE", parsedState.error);
-  const parsedCommand = buyCommandSchema.safeParse(order);
+    return invalid("INVALID_SELL_STATE", parsedState.error);
+  const parsedCommand = sellCommandSchema.safeParse(order);
   if (!parsedCommand.success)
     return invalid("INVALID_ORDER", parsedCommand.error);
   const state = parsedState.data;
@@ -25,14 +25,14 @@ export function executeBuy(input: unknown, order: unknown): BuyResult {
     );
   if (state.status !== "OPEN")
     return reject("MARKET_CLOSED", ["status"], "Round is not open for trading");
-  const buyer = state.humans.find(
+  const seller = state.humans.find(
     (human) => human.playerId === command.playerId,
   );
-  if (!buyer)
+  if (!seller)
     return reject(
       "PLAYER_NOT_IN_ROUND",
       ["playerId"],
-      "Buyer is not a round participant",
+      "Seller is not a round participant",
     );
   const { rules } = state.market;
   if (command.quantity > rules.orders.maxQuantity)
@@ -50,39 +50,36 @@ export function executeBuy(input: unknown, order: unknown): BuyResult {
       ["protectionPriceCents"],
       "Protection is outside frozen price bounds",
     );
-  if (
-    BigInt(buyer.cashCents) <
-    BigInt(command.quantity) * BigInt(command.protectionPriceCents)
-  )
+  if (seller.holdings[command.symbol] < command.quantity)
     return reject(
-      "INSUFFICIENT_CASH",
+      "INSUFFICIENT_HOLDINGS",
       ["quantity"],
-      "Insufficient cash for full protected quantity",
+      "Insufficient holdings for full requested quantity",
     );
-  const fills: BuyFill[] = [];
+  const fills: SellFill[] = [];
   let remainingQuantity = command.quantity;
   let totalValueCents = 0;
-  const asks = state.quotes
+  const bids = state.quotes
     .filter(
       (quote) =>
-        quote.side === "ask" &&
+        quote.side === "bid" &&
         quote.symbol === command.symbol &&
-        quote.priceCents <= command.protectionPriceCents,
+        quote.priceCents >= command.protectionPriceCents,
     )
     .sort(
       (a, b) =>
-        a.priceCents - b.priceCents ||
+        b.priceCents - a.priceCents ||
         a.creationSequence - b.creationSequence ||
         (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
-  for (const quote of asks) {
+  for (const quote of bids) {
     if (remainingQuantity === 0) break;
     const quantity = Math.min(remainingQuantity, quote.quantity);
     const value = Number(BigInt(quantity) * BigInt(quote.priceCents));
     fills.push({
       quoteId: quote.id,
-      buyerId: command.playerId,
-      sellerId: "system:bot",
+      buyerId: "system:bot",
+      sellerId: command.playerId,
       symbol: command.symbol,
       quantity,
       priceCents: quote.priceCents,
@@ -92,26 +89,26 @@ export function executeBuy(input: unknown, order: unknown): BuyResult {
     totalValueCents += value;
   }
   const filledQuantity = command.quantity - remainingQuantity;
-  const botCash = BigInt(state.market.bot.cashCents) + BigInt(totalValueCents);
-  const buyerUnits =
-    BigInt(buyer.holdings[command.symbol]) + BigInt(filledQuantity);
-  if (botCash > BigInt(Number.MAX_SAFE_INTEGER))
+  const sellerCash = BigInt(seller.cashCents) + BigInt(totalValueCents);
+  const botUnits =
+    BigInt(state.market.bot.holdings[command.symbol]) + BigInt(filledQuantity);
+  if (sellerCash > BigInt(Number.MAX_SAFE_INTEGER))
     return reject(
       "UNSAFE_SETTLEMENT",
-      ["market", "bot", "cashCents"],
+      ["humans", state.humans.indexOf(seller), "cashCents"],
       "Resulting cash exceeds safe integer range",
     );
-  if (buyerUnits > BigInt(Number.MAX_SAFE_INTEGER))
+  if (botUnits > BigInt(Number.MAX_SAFE_INTEGER))
     return reject(
       "UNSAFE_SETTLEMENT",
-      ["humans", state.humans.indexOf(buyer), "holdings", command.symbol],
+      ["market", "bot", "holdings", command.symbol],
       "Resulting holdings exceed safe integer range",
     );
-  buyer.cashCents -= totalValueCents;
-  buyer.holdings[command.symbol] = Number(buyerUnits);
-  state.market.bot.cashCents = Number(botCash);
-  state.market.bot.holdings[command.symbol] -= filledQuantity;
-  const completed = completeOrder(state, command, fills, "INVALID_BUY_STATE");
+  seller.cashCents = Number(sellerCash);
+  seller.holdings[command.symbol] -= filledQuantity;
+  state.market.bot.cashCents -= totalValueCents;
+  state.market.bot.holdings[command.symbol] = Number(botUnits);
+  const completed = completeOrder(state, command, fills, "INVALID_SELL_STATE");
   if (!completed.ok) return completed;
   return { ...completed, command, fills };
 }

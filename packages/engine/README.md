@@ -1,6 +1,6 @@
 # Market engine
 
-Tickets [#3](https://github.com/Kenneth882/DinoPump/issues/3) and [#4](https://github.com/Kenneth882/DinoPump/issues/4) implement quote generation and protected buys from [market rules §5](../../docs/spec/market-engine.md). Sells, persistence, and scheduling remain later tickets.
+Tickets [#3](https://github.com/Kenneth882/DinoPump/issues/3), [#4](https://github.com/Kenneth882/DinoPump/issues/4), and [#5](https://github.com/Kenneth882/DinoPump/issues/5) implement quote generation and protected buys/sells from [market rules §5](../../docs/spec/market-engine.md). Persistence and scheduling remain later tickets.
 
 ## Public boundary
 
@@ -65,3 +65,18 @@ pnpm check
 ```
 
 The buy tests cover AC-03's exact example, the underfunded-buy portion of AC-04, engine input/status rejection in AC-05, full/partial/zero protection outcomes in AC-06, and the engine conservation/reservation portions of AC-08 and AC-16. They include exhausted inventory, stale protection, deterministic tie ordering, frozen custom settings, numeric boundaries, atomic failure, and 500 seeded commands across both players and all four assets. Service serialization, database atomicity/recovery, browser trading, and a complete playable round remain unverified by these pure tests.
+
+## Protected sells
+
+`executeSell(state, command)` uses the same complete transition boundary as buys. `SellState` shares the validated `BuyState` shape, and either command's committed output can be the next command's input. `SellCommand` uses `side: "sell"`; `protectionPriceCents` is a fixed minimum. `SellResult` shares the buy outcome and issue shapes, with the human as seller and `system:bot` as buyer in every fill. These schemas/types are exported from `@dinopump/contracts`.
+
+A sell requires holdings for the entire requested quantity before matching, including when only a partial fill could execute. Covered bids execute highest price first, then creation sequence and stable ID, at resting prices without widening protection. Settlement transfers the bot's existing cash to the seller and the seller's units to the bot. A filled sell moves reference down by the frozen impact (10 basis points by default), once per order, using exact half-up rounding and clamping; last price becomes the latest fill. Every completed order rebuilds quotes, including zero fills. There is no shorting, borrowing, fee, or replenishment.
+
+Sell failures use `INVALID_SELL_STATE` and `INSUFFICIENT_HOLDINGS` in place of the buy-specific state/cash codes; other failure codes and atomicity guarantees are shared. Authentication, command serialization, request idempotency, event envelopes/sequences, database commit and broadcast remain the service's responsibility. The engine returns all facts needed for the same order/trade/reference/quote event batch as buys; it does not persist or emit events.
+
+```sh
+pnpm test packages/engine/test/protected-sells.test.ts
+pnpm check
+```
+
+Sell tests support AC-04, AC-05, AC-06, AC-08, and AC-16 at the engine boundary: exact multi-level proceeds and buy→sell settlement; conservative oversell rejection; stable invalid-input/closed-round errors; full/partial/zero outcomes and stale protection; tie priority; exhausted bot cash; frozen limits and reference impact; half-up rounding, clamping, safe integer arithmetic, and atomic failure. A 1,000-command seeded mixed buy/sell run verifies deterministic output, immutable inputs, nonnegative balances, cash/unit conservation, and covered reservations across both players and all assets. These tests do not establish authentication, concurrent service serialization, database recovery, browser trading, or full milestone acceptance. The implementation uses existing rules `1.1` without changing gameplay requirements or upgrading active rounds.
