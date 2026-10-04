@@ -33,3 +33,11 @@ Pure tests exercise buy-then-sell, exact multi-level proceeds, overselling, cons
 Blocked by: #4.
 
 - [#4](https://github.com/Kenneth882/DinoPump/issues/4): Execute protected buys atomically in the engine
+
+## Local implementation evidence
+
+Implemented on October 4, 2026 under existing frozen rules `1.1`. Blocker #4 was verified closed as completed; its implementation commit `1680822` is present via merge `4b77167`.
+
+The public `executeSell` boundary and shared contracts are documented in the [engine README](../../../packages/engine/README.md#protected-sells). Pure tests cover the engine portions of AC-04, AC-05, AC-06, AC-08, and AC-16, including 1,000 seeded mixed buy/sell commands. Authentication, service serialization, persisted event batches/recovery, and browser acceptance remain later work.
+
+Validation: `pnpm check` passed lint, formatting, type checking, all 169 tests (55 protected-sell tests), and production builds. The first sandboxed run could not bind the existing HTTP test server to localhost; the rerun with local server access passed.
