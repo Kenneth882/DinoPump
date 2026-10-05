@@ -80,3 +80,91 @@ pnpm check
 ```
 
 Sell tests support AC-04, AC-05, AC-06, AC-08, and AC-16 at the engine boundary: exact multi-level proceeds and buy→sell settlement; conservative oversell rejection; stable invalid-input/closed-round errors; full/partial/zero outcomes and stale protection; tie priority; exhausted bot cash; frozen limits and reference impact; half-up rounding, clamping, safe integer arithmetic, and atomic failure. A 1,000-command seeded mixed buy/sell run verifies deterministic output, immutable inputs, nonnegative balances, cash/unit conservation, and covered reservations across both players and all assets. These tests do not establish authentication, concurrent service serialization, database recovery, browser trading, or full milestone acceptance. The implementation uses existing rules `1.1` without changing gameplay requirements or upgrading active rounds.
+
+## Round commands, marking, and replay (#6)
+
+Use the following public boundary for complete round transitions. The low-level
+`executeBuy`/`executeSell` functions above remain available; this wrapper adds
+in-memory request idempotency and versioned, ordered event batches. It implements
+existing rules `1.1` without changing gameplay or upgrading frozen rounds.
+
+- `startEngineRound(frozenRound)` consumes the validated funding and recorded
+  schedule from ticket #2. It returns an `OPEN` projection and a complete
+  `RoundOpened`/`QuotesRebuilt` batch. Sequence 1 remains the existing persisted
+  `RoundInitialized` record; opening starts at sequence 2. The caller invokes
+  opening only when its authoritative clock permits it.
+- `processEngineCommand(state, command)` accepts `SubmitOrder`,
+  `ApplyScheduledEvent`, `SettleRound`, or `AbortRound`. Each includes `atMs`,
+  supplied by the authoritative service. The engine never reads a clock.
+  `OpenRound` is recorded only by `startEngineRound`, not accepted again on a
+  current projection.
+- `getPortfolioRankings(state)` marks each human's holdings at the latest fill
+  price (initial prices before any fill). It uses exact integer value calculations,
+  excludes the bot, and returns portfolio value, profit, display-only return
+  percentage, and shared competition ranks (`1, 1, 3`). Join order stabilizes
+  display only. Unsafe values return `UNSAFE_VALUATION`.
+- `reduceEngineBatch(state, batch)` applies a complete recorded batch atomically.
+  `replayEngine(frozenRound, batches)` reconstructs from opening through the last
+  complete committed batch. Both reject unsupported, reordered, incomplete,
+  duplicate, or altered batches with `INVALID_REPLAY` and no partial state.
+
+`EngineState`, commands, facts, batches, errors, rankings, and final results have
+shared runtime schemas in `@dinopump/contracts`. Projection validation checks
+frozen rules/participants, safe resources, conservation, covered reservations,
+unique receipt identities, and terminal status consistency. Only use returned,
+committed projections as future inputs; use replay to validate history rather
+than treating a structurally valid projection as proof of provenance.
+
+A successful command returns `{ ok: true, state, batch, receipt }`. A rejected
+**trading attempt** is still a successfully processed command: its receipt has
+`result.ok: false`, and its batch records `OrderRejected`. A matched order records
+`OrderAccepted`, ordered `TradeExecuted` facts, its reference adjustment when
+filled, quote replacement, and `OrderCompleted`. Malformed commands and commands
+with foreign round/player identity return a top-level error without a batch.
+The caller must derive player identity from authentication; these are internal
+commands, not browser payloads.
+
+Receipts retain the normalized order and its original outcome/fills, without a
+historical full-state copy. The `(roundId, playerId, requestId)` identity is checked
+before time/status handling. An identical retry returns the original receipt,
+current state, and `batch: null`; changed content returns
+`IDEMPOTENCY_CONFLICT`. Retrying an earlier rejected attempt never rematches it.
+Different players can use the same request ID independently. Replay reconstructs
+these receipts, enabling the same pure retry behavior after reconstruction;
+durable uniqueness and transactional retry enforcement remain service work.
+
+Scheduled commands contain only a recorded schedule ID, never replacement
+shocks or generated prose. Effects apply in recorded order, exactly once, with
+integer half-up rounding and clamping. All quotes rebuild, including unaffected
+symbols, while last-trade marks and ledgers stay unchanged. Duplicate applied
+IDs return `batch: null`. Commands cannot move authoritative time backwards.
+New orders return `EVENTS_DUE` if a recorded effect is due. At/after close an
+open round rejects new orders with `MARKET_CLOSED`: the caller must catch up all
+pre-close effects, settle, then submit the attempt to record its closed-market
+receipt. Catch-up may use a time after close; it never extends the round.
+
+Settlement requires the closing deadline and the complete pre-close schedule.
+It freezes marks, values, shared ranks, and settlement sequence in `finalResult`.
+The transition to `FINISHED` is atomic (no partially visible settling projection).
+Settlement retries are no-ops, and later order rejections preserve final results.
+Abort produces `ABORTED` with a reason and no final result/winner; a terminal round
+cannot be changed by another terminal transition. Narration is not an accepted
+engine command.
+
+Persist the **whole batch including its command** and resulting projection in one
+transaction, then broadcast filtered public/private views after commit. Each fact
+carries schema version 1, round ID, sequence, cause ID and recorded time. These
+are internal engine facts: persistence assigns durable event IDs and maps logical
+causes to its storage envelope. The database adapter is not added by this ticket.
+Replay reduces recorded commands using the frozen version's engine and compares
+all resulting facts before exposing state, so matching/settlement has one source
+of truth. Retain rules-version implementations for historical replay. JSON object
+key order is immaterial; array/event order is authoritative.
+
+The engine performs no persistence, authentication, scheduling timers, network
+I/O, randomness, or narration. The service still owns serialization, due-event
+catch-up, opening/closing clock authority, transaction boundaries, durable retries,
+event-ID mapping, visibility filtering and restart orchestration.
+
+See [ticket #6 validation evidence](../../../docs/validation/ticket-6-engine.md)
+for acceptance coverage and the remaining service/browser gates.
