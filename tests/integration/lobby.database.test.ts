@@ -197,3 +197,27 @@ it("fails closed after the database ownership connection is lost, then recovers 
   ]);
   expect((await store.connect(host.secret, room.code)).players).toHaveLength(1);
 });
+
+it("uses the validated shared room timings for deadlines instead of hard-coded defaults", async () => {
+  const { loadBaseline } =
+    await import("../../packages/game-content/src/index.js");
+  const rules = loadBaseline().rules.room;
+  rules.hostDisconnectGraceMs = 2000;
+  rules.emptyLobbyExpiryMs = 10_000;
+  await store.close();
+  store = await LobbyStore.open(database.pool, () => now, rules);
+  const host = await guest("Host");
+  const room = await store.createRoom(host.secret);
+  expect(room.hostTransferAt).toBe(now + 2000);
+  expect(room.expiresAt).toBe(now + 10_000);
+  await store.connect(host.secret, room.code);
+  await store.disconnect(host.player.playerId, room.code);
+  expect((await store.snapshot(host.secret, room.code)).hostTransferAt).toBe(
+    now + 2000,
+  );
+  now += 10_000;
+  await store.processDue();
+  await expect(store.snapshot(host.secret, room.code)).rejects.toMatchObject({
+    code: "ROOM_NOT_FOUND",
+  });
+});

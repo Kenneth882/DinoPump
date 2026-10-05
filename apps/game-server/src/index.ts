@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { loadBaseline } from "@dinopump/game-content";
 import { LobbyStore } from "@dinopump/database";
 import { createGameServer } from "./server.js";
 
@@ -25,9 +26,12 @@ const pool = process.env.DATABASE_URL
       statement_timeout: 5000,
     })
   : undefined;
-const store = pool ? await LobbyStore.open(pool) : undefined;
+const baseline = loadBaseline();
+const store = pool
+  ? await LobbyStore.open(pool, Date.now, baseline.rules.room)
+  : undefined;
 const server = createGameServer(
-  undefined,
+  baseline,
   store ? { store, webOrigin, secureCookies } : undefined,
 );
 server.listen(port, "127.0.0.1", () =>

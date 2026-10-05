@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { io } from "socket.io-client";
 import {
   guestRequestSchema,
@@ -57,24 +57,52 @@ export function Lobby() {
   const [connection, setConnection] = useState("Connecting…");
   const [pending, setPending] = useState(true);
   const [error, setError] = useState("");
+  const [recovering, setRecovering] = useState(true);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const clearLobby = useCallback(() => {
+    localStorage.removeItem("dinopump-room");
+    setActiveCode("");
+    setSnapshot(null);
+  }, []);
 
   useEffect(() => {
     let active = true;
-    void request("/api/session")
-      .then((data) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = 500;
+    async function restore() {
+      try {
+        const restored = sessionResponseSchema.parse(
+          await request("/api/session"),
+        );
         if (!active) return;
-        setPlayer(sessionResponseSchema.parse(data).player);
+        setPlayer(restored.player);
         const saved = localStorage.getItem("dinopump-room") ?? "";
         if (roomCodeSchema.safeParse(saved).success) setActiveCode(saved);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setPending(false);
-      });
+        setError("");
+        setRecovering(false);
+        setPending(false);
+      } catch (error) {
+        if (!active) return;
+        if (error instanceof RequestError && error.code === "UNAUTHENTICATED") {
+          clearLobby();
+          setError("");
+          setRecovering(false);
+          setPending(false);
+        } else {
+          setError(lobbyErrorMessages.SERVICE_UNAVAILABLE);
+          timer = setTimeout(() => {
+            void restore();
+          }, delay);
+          delay = Math.min(delay * 2, 5000);
+        }
+      }
+    }
+    void restore();
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [restoreAttempt, clearLobby]);
   useEffect(() => {
     if (!activeCode) return;
     const socket = io({
@@ -97,9 +125,7 @@ export function Lobby() {
           parsed.data.error,
         )
       ) {
-        localStorage.removeItem("dinopump-room");
-        setActiveCode("");
-        setSnapshot(null);
+        clearLobby();
         if (parsed.data.error === "UNAUTHENTICATED") setPlayer(null);
       }
     }
@@ -133,7 +159,7 @@ export function Lobby() {
       clearInterval(reconnect);
       socket.disconnect();
     };
-  }, [activeCode]);
+  }, [activeCode, clearLobby]);
   async function perform(work: () => Promise<void>) {
     setPending(true);
     setError("");
@@ -142,9 +168,7 @@ export function Lobby() {
     } catch (error) {
       if (error instanceof RequestError && error.code === "UNAUTHENTICATED") {
         setPlayer(null);
-        setActiveCode("");
-        setSnapshot(null);
-        localStorage.removeItem("dinopump-room");
+        clearLobby();
       }
       setError(
         error instanceof Error
@@ -203,7 +227,16 @@ export function Lobby() {
         Fictional market game. Virtual currency only.
       </p>
       {error && <p role="alert">{error}</p>}
-      {!player ? (
+      {recovering ? (
+        <div>
+          <p aria-live="polite">Restoring your guest session…</p>
+          {error && (
+            <button onClick={() => setRestoreAttempt((attempt) => attempt + 1)}>
+              Retry session
+            </button>
+          )}
+        </div>
+      ) : !player ? (
         <form onSubmit={save} className="guest-form">
           <label htmlFor="display-name">
             Display name

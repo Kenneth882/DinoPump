@@ -46,7 +46,29 @@ test("two guests create, join, and reconnect to the same lobby at 360px (AC-01/1
     await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15_000,
     });
+    // Fail all startup lookups, including React development effect replay.
+    let sessionUnavailable = true;
+    await guest.route("**/api/session", (route) =>
+      sessionUnavailable
+        ? route.fulfill({
+            status: 503,
+            json: {
+              error: "SERVICE_UNAVAILABLE",
+              message: "Temporarily unavailable",
+            },
+          })
+        : route.continue(),
+    );
     await guest.reload();
+    await expect(
+      guest
+        .getByRole("region", { name: "Gather your herd" })
+        .getByRole("alert"),
+    ).toHaveText("The lobby is temporarily unavailable. Please retry.");
+    await expect(guest.getByRole("button", { name: "Save guest" })).toHaveCount(
+      0,
+    );
+    sessionUnavailable = false;
     await expect(guest.getByTestId("room-code")).toHaveText(code);
     const after = await guest.evaluate(
       async (roomCode) =>

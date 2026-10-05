@@ -1,7 +1,10 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { loadBaseline } from "@dinopump/game-content";
 import {
   guestRequestSchema,
+  gameplayRulesSchema,
+  type Baseline,
   playerSchema,
   lobbySnapshotSchema,
   roomCodeSchema,
@@ -24,24 +27,30 @@ export class LobbyStore {
   private constructor(
     private client: PoolClient,
     private clock: () => number,
+    private roomRules: Baseline["rules"]["room"],
   ) {
     client.on("error", () => {
       this.available = false;
     });
   }
-  static async open(pool: Pool, clock: () => number = Date.now) {
+  static async open(
+    pool: Pool,
+    clock: () => number = Date.now,
+    roomRules: Baseline["rules"]["room"] = loadBaseline().rules.room,
+  ) {
+    const rules = gameplayRulesSchema.shape.room.parse(roomRules);
     const client = await pool.connect();
     try {
       const lock = await client.query<{ owned: boolean }>(
         "SELECT pg_try_advisory_lock(18474, hashtext(current_schema())) AS owned",
       );
       if (!lock.rows[0]?.owned) throw new LobbyError("SERVICE_UNAVAILABLE");
-      const store = new LobbyStore(client, clock);
+      const store = new LobbyStore(client, clock, rules);
       await store.run(async (db, now) => {
         // A previous process's sockets cannot survive ownership takeover.
         await db.query(
           "UPDATE rooms SET sequence=sequence+1, host_transfer_at=COALESCE(host_transfer_at,$1), expires_at=COALESCE(expires_at,$2) WHERE status='LOBBY' AND EXISTS(SELECT 1 FROM room_members m WHERE m.code=rooms.code AND m.connected_at IS NOT NULL)",
-          [now + 15_000, now + 300_000],
+          [now + rules.hostDisconnectGraceMs, now + rules.emptyLobbyExpiryMs],
         );
         await db.query(
           "UPDATE room_members SET connected_at=NULL WHERE connected_at IS NOT NULL",
@@ -195,7 +204,12 @@ export class LobbyStore {
       const code = randomBytes(3).toString("hex").toUpperCase();
       await client.query(
         "INSERT INTO rooms(code,host_id,host_transfer_at,expires_at) VALUES ($1,$2,$3,$4)",
-        [code, player.playerId, now + 15_000, now + 300_000],
+        [
+          code,
+          player.playerId,
+          now + this.roomRules.hostDisconnectGraceMs,
+          now + this.roomRules.emptyLobbyExpiryMs,
+        ],
       );
       await client.query(
         "INSERT INTO room_members(code,player_id,normalized_name,join_order) VALUES ($1,$2,$3,0)",
@@ -229,7 +243,8 @@ export class LobbyStore {
         )
       )
         throw new LobbyError("NAME_TAKEN");
-      if (room.players.length >= 8) throw new LobbyError("ROOM_FULL");
+      if (room.players.length >= this.roomRules.maxPlayers)
+        throw new LobbyError("ROOM_FULL");
       await client.query(
         "INSERT INTO room_members(code,player_id,normalized_name,join_order) VALUES ($1,$2,$3,$4)",
         [
@@ -271,7 +286,12 @@ export class LobbyStore {
       if (!changed.rowCount) return;
       await client.query(
         "UPDATE rooms SET sequence=sequence+1, host_transfer_at=CASE WHEN host_id=$2 THEN $3 ELSE host_transfer_at END, expires_at=CASE WHEN NOT EXISTS(SELECT 1 FROM room_members WHERE code=$1 AND connected_at IS NOT NULL) THEN $4 ELSE expires_at END WHERE code=$1",
-        [code, playerId, now + 15_000, now + 300_000],
+        [
+          code,
+          playerId,
+          now + this.roomRules.hostDisconnectGraceMs,
+          now + this.roomRules.emptyLobbyExpiryMs,
+        ],
       );
     });
   }
