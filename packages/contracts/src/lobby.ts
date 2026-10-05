@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { assetSymbolSchema } from "./baseline.js";
+import { botQuoteSchema } from "./bot-quotes.js";
+import { frozenRoundSchema } from "./round-baseline.js";
 
 export const avatarSchema = z.enum([
   "trex",
@@ -32,6 +35,37 @@ export const lobbySubscriptionSchema = z
 export const lobbyResyncSchema = lobbySubscriptionSchema
   .extend({ requestId: z.uuid() })
   .strict();
+export const roomReadySchema = z.strictObject({
+  ready: z.boolean(),
+  requestId: z.uuid(),
+});
+export const roundStartSchema = z.strictObject({ requestId: z.uuid() });
+export const roomCommandOutcomeSchema = z.strictObject({
+  requestId: z.uuid(),
+  sequence: z.number().int().nonnegative(),
+  status: z.enum(["LOBBY", "COUNTDOWN"]),
+  roundId: z.uuid().nullable(),
+});
+export const openedRoundViewSchema = z.strictObject({
+  roundId: z.uuid(),
+  sequence: z.number().int().positive(),
+  opensAt: z.number().int().nonnegative(),
+  closesAt: z.number().int().nonnegative(),
+  assets: z
+    .array(
+      z.strictObject({
+        symbol: assetSymbolSchema,
+        referencePriceCents: z.number().int().positive(),
+        lastPriceCents: z.number().int().positive(),
+      }),
+    )
+    .length(4),
+  quotes: z.array(botQuoteSchema).max(24),
+  portfolio: frozenRoundSchema.shape.initialState.shape.humans.element.omit({
+    playerId: true,
+    joinOrder: true,
+  }),
+});
 export const lobbySnapshotSchema = z
   .object({
     code: roomCodeSchema,
@@ -49,8 +83,21 @@ export const lobbySnapshotSchema = z
     serverTime: z.number().int().nonnegative(),
     hostTransferAt: z.number().int().nonnegative().nullable(),
     expiresAt: z.number().int().nonnegative().nullable(),
+    countdown: z
+      .strictObject({
+        roundId: z.uuid(),
+        opensAt: z.number().int().nonnegative(),
+        closesAt: z.number().int().nonnegative(),
+        participantIds: z.array(z.uuid()).min(2).max(8),
+      })
+      .nullable(),
+    round: openedRoundViewSchema.nullable(),
     players: z
-      .array(playerSchema.extend({ connected: z.boolean() }).strict())
+      .array(
+        playerSchema
+          .extend({ connected: z.boolean(), ready: z.boolean() })
+          .strict(),
+      )
       .min(1)
       .max(8),
   })
@@ -66,6 +113,10 @@ export const lobbyErrorMessages = {
   ROOM_FULL: "This lobby already has eight players.",
   NAME_TAKEN: "That display name is already in this lobby.",
   JOIN_LOCKED: "This round has locked its players. Join the next lobby.",
+  INVALID_ROOM_STATE: "This action is only available in the lobby.",
+  NOT_ENOUGH_READY_PLAYERS: "At least two connected players must be ready.",
+  IDEMPOTENCY_CONFLICT:
+    "That request ID was already used for a different command.",
   SERVICE_UNAVAILABLE: "The lobby is temporarily unavailable. Please retry.",
 } as const;
 export const lobbyErrorCodeSchema = z.enum(
@@ -83,3 +134,4 @@ export const lobbyCommandErrorSchema = lobbyErrorSchema
 export type LobbyErrorCode = keyof typeof lobbyErrorMessages;
 export type GuestPlayer = z.infer<typeof playerSchema>;
 export type LobbySnapshot = z.infer<typeof lobbySnapshotSchema>;
+export type RoomCommandOutcome = z.infer<typeof roomCommandOutcomeSchema>;

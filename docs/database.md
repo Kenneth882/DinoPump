@@ -30,7 +30,7 @@ The suite covers fresh/repeated/concurrent migrations; exact initial resources; 
 
 `@dinopump/database` exports `migrate(pool)`, `createRoundBaseline(pool, input)`, `readRoundBaseline(pool, roundId)`, and `readRoundRecovery(pool, roundId)`. Callers own their PostgreSQL pool. Run migrations before using round APIs.
 
-Initialization takes a UUID round ID, unsigned 32-bit seed, explicit configuration version, ordered participant UUIDs, creation/open timestamps in integer epoch milliseconds, and a complete validated configuration from `loadBaseline()`. Creation must precede opening. Participant order records join order; sessions, avatars, room state, and authorization arrive in later tickets. The service must derive these inputs from its authoritative state when that integration is implemented.
+Initialization takes a UUID round ID, unsigned 32-bit seed, explicit configuration version, ordered participant UUIDs, creation/open timestamps in integer epoch milliseconds, and a complete validated configuration from `loadBaseline()`. Creation must precede opening. Participant order records join order. Ticket #8 derives these inputs from authenticated room state, freezes them at countdown start, and composes initialization and opening in the owned room transaction.
 
 The stored snapshot includes schema/rules/config/catalog versions, all source configuration, open/close deadlines, initial reference and last prices, human and bot resources, and the complete selected event schedule with IDs, times, facts, templates, icons, and fixed effects. Catalog version is the baseline's `contentVersion`, which already versions the authored catalog; `configVersion` identifies the chosen configuration snapshot. Defaults yield four assets, 1,000,000 cents per human with no units, and a bot with 1,000,000,000 cents plus 100,000 units per asset.
 
@@ -40,10 +40,30 @@ One transaction inserts the immutable baseline, a schema-version-1 `RoundInitial
 
 The round ID is the initialization idempotency key. Concurrent identical requests and retries after reconnect return the original snapshot. Reusing the ID with changed validated input throws `RoundInitializationConflict` with code `IDEMPOTENCY_CONFLICT`. To use changed configuration, create a new round ID. Read APIs validate stored contracts; recovery reads the event and projection in one database snapshot and rejects inconsistencies. Callers receive independent objects and cannot mutate persisted data by editing a returned value.
 
-This is partial supporting evidence for **AC-02, AC-09, AC-12, and AC-15**. Live funding/opening, event application, gameplay replay, restart catch-up, settlement, and browser round acceptance remain unimplemented. Later slices extend the schema-versioned events and projections; the current recovery contract accepts only initialization.
+This is partial supporting evidence for **AC-02, AC-09, AC-12, and AC-15**. Ticket #8 adds live funding/opening and opening replay through the API below. Event application, full gameplay recovery, settlement, and complete browser round acceptance remain later work. Later slices extend the schema-versioned events and projections; the current recovery contract accepts only initialization.
 
 Validation recorded October 2, 2026: `pnpm db:verify` passed all 17 PostgreSQL cases and cleaned up its disposable container; `pnpm check` passed lint, formatting, typechecking, all 38 existing tests, and production builds. Changed documentation links resolved. Standards review reported no findings; the spec review's UUID-casing finding was fixed, regression-tested, and re-reviewed with no remaining findings. Browser tests were not rerun for this internal persistence change.
 
 ## Guest lobby storage
 
 Migration 2 adds guests, rooms, membership, and lifecycle records without changing frozen rounds. The game service owns the single lobby using a dedicated PostgreSQL advisory-lock connection. See [lobby persistence, security, recovery, and verification](lobby.md) for the new API and deadlines. `pnpm db:verify` now also runs isolated database-backed HTTP and Socket.IO lobby tests.
+
+## Atomic opening storage
+
+Migration 3 adds readiness to memberships, `room_commands` for durable successful
+command outcomes, `room_countdowns` for frozen intended initialization, and
+`round_batches` for immutable engine command/event batches. The owned transaction
+composes baseline initialization and the full opening, then updates the projection
+to engine state at sequence 3. The room points to that round in the same commit.
+
+`readOpenedRound(pool, roundId)` is an internal API returning validated engine
+state after replay and comparison with the committed events/projection. It can
+also compose with a caller's transaction connection. `readRoundRecovery` retains
+its baseline-only sequence-1 contract; use `readOpenedRound` for actual opened
+rounds. Opening event IDs are assigned UUIDs on commit, with the round UUID as
+the cause. The complete logical batch remains available for replay.
+
+The service derives private/public views from this state; callers must never
+send a raw engine state or frozen schedule to the browser. Restart reads committed
+opening history without refunding or reinitializing participants. Full gameplay
+catch-up remains later work. See [ticket #8 evidence](validation/ticket-8-opening.md).

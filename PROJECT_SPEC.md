@@ -83,8 +83,8 @@ These are initial balancing values. Content version covers assets, authored even
 
 1. A player chooses a dinosaur avatar and a unique display name, then creates or joins the active room using its code.
 2. The lobby shows players, the fictional-currency notice, and a short explanation of buying, selling, and scoring.
-3. At least two connected players must mark themselves ready. The host starts a five-second countdown; joining and the participant list then lock.
-4. If fewer than two players remain connected before opening, the countdown returns to the lobby. Otherwise the round opens for the locked participants.
+3. At least two connected players must mark themselves ready. The host starts a five-second countdown; joining and the participant list then lock. All current lobby members, including unready or disconnected guests, become locked participants in join order.
+4. If fewer than two locked participants remain connected before opening, the countdown returns to the lobby, unlocks admission, and resets every player's readiness. Otherwise the round opens for all locked participants.
 5. Each participant begins with **D$10,000.00 cash and zero holdings**. The market remains open for **600 seconds**.
 6. Players buy and sell whole units, follow the feed, and monitor their portfolios. New participants cannot join an open round; existing participants can reconnect.
 7. Market events occur at elapsed seconds 60, 120, …, 540. There are nine events; no event occurs at the closing boundary.
@@ -177,6 +177,8 @@ Rules version `1.1` specifies deterministic quote identity, replacement, and exa
 ### Read-only introduction
 
 Before live rounds are implemented, show Pangaea Exchange, the four canonical assets and their initial prices in Dino Dollars, “Fictional market game. Virtual currency only.”, and “Live rounds are not available yet.” Fetch the validated baseline from the game service at runtime; production builds must not require a running service. Do not add gameplay or configuration controls.
+
+During the opening-only implementation stage, the availability notice reads “Ready your herd to open a round. Trading is coming next.” The introduction retains initial-price labels; the opening view shows authoritative starting resources and quotes without trading controls.
 
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
@@ -388,7 +390,7 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | ID | Required acceptance criterion |
 | --- | --- |
 | AC-01 | Two to eight guests can enter a lobby; a ninth is rejected; an open round rejects new participants. |
-| AC-02 | The versioned baseline validates the canonical four assets and all documented gameplay defaults. A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once. |
+| AC-02 | The versioned baseline validates the canonical four assets and all documented gameplay defaults. A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once for all locked lobby members in join order. A cancelled countdown resets readiness and unlocks joining without funding participants. |
 | AC-03 | A buy fills the cheapest eligible asks and updates buyer and bot ledgers correctly. At asks D$40.40 and D$40.80, buying 150 units fills 100 and 50 for D$6,080.00. With a D$41.00 protection, buyer cash becomes D$3,920.00. |
 | AC-04 | Selling owned units fills highest eligible bids and transfers the exact cash and units; overselling and underfunded buys have no ledger effects. |
 | AC-05 | Invalid values, unknown assets, unauthenticated commands, and closed-round orders are rejected with stable codes. Invalid baseline assets, defaults, or catalog entries prevent service startup with field-specific validation errors. |

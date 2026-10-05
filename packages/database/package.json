@@ -17,6 +17,7 @@
     "dev": "tsc -p tsconfig.json --watch"
   },
   "dependencies": {
+    "@dinopump/engine": "workspace:*",
     "@dinopump/contracts": "workspace:*",
     "@dinopump/game-content": "workspace:*",
     "pg": "8.23.0"

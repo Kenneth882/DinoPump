@@ -80,6 +80,33 @@ const migrations = [
       );
     `,
   },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE room_members ADD COLUMN ready boolean NOT NULL DEFAULT false;
+      CREATE TABLE room_countdowns (
+        code text PRIMARY KEY REFERENCES rooms(code),
+        initialization jsonb NOT NULL
+      );
+      CREATE TABLE round_batches (
+        round_id uuid NOT NULL REFERENCES rounds(round_id),
+        end_sequence bigint NOT NULL,
+        batch jsonb NOT NULL,
+        PRIMARY KEY (round_id, end_sequence),
+        FOREIGN KEY (round_id, end_sequence) REFERENCES game_events(round_id, sequence)
+      );
+      CREATE TRIGGER immutable_batch BEFORE UPDATE OR DELETE ON round_batches
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE TABLE room_commands (
+        code text NOT NULL REFERENCES rooms(code),
+        player_id uuid NOT NULL REFERENCES guest_sessions(player_id),
+        request_id uuid NOT NULL,
+        command jsonb NOT NULL,
+        outcome jsonb NOT NULL,
+        PRIMARY KEY (code, player_id, request_id)
+      );
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */

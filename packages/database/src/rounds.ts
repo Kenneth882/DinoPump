@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import {
   frozenRoundSchema,
   roundInitializationSchema,
@@ -19,39 +19,10 @@ export async function createRoundBaseline(
   pool: Pool,
   value: unknown,
 ): Promise<FrozenRound> {
-  const input = roundInitializationSchema.parse(value);
-  const baseline = buildRoundBaseline(input);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const inserted = await client.query(
-      "INSERT INTO rounds (round_id, initialization, baseline) VALUES ($1, $2, $3) ON CONFLICT (round_id) DO NOTHING RETURNING round_id",
-      [input.roundId, input, baseline],
-    );
-    if (inserted.rowCount === 0) {
-      const existing = await client.query<{
-        baseline: unknown;
-        matches: boolean;
-      }>(
-        "SELECT baseline, initialization = $2::jsonb AS matches FROM rounds WHERE round_id = $1",
-        [input.roundId, input],
-      );
-      const row = existing.rows[0];
-      if (!row?.matches) throw new RoundInitializationConflict();
-      const original = frozenRoundSchema.parse(row.baseline);
-      await client.query("COMMIT");
-      return original;
-    }
-    await client.query(
-      `INSERT INTO game_events
-      (round_id, sequence, event_id, schema_version, type, payload, cause_id, occurred_at_ms)
-      VALUES ($1, 1, $1, 1, 'RoundInitialized', $2, $1, $3)`,
-      [input.roundId, baseline, input.createdAtMs],
-    );
-    await client.query(
-      "INSERT INTO round_projections (round_id, sequence, schema_version, state) VALUES ($1, 1, 1, $2)",
-      [input.roundId, baseline.initialState],
-    );
+    const baseline = await insertRoundBaseline(client, value);
     await client.query("COMMIT");
     return baseline;
   } catch (error) {
@@ -60,6 +31,41 @@ export async function createRoundBaseline(
   } finally {
     client.release();
   }
+}
+
+/** Compose initialization with other writes on the caller's transaction. */
+export async function insertRoundBaseline(
+  client: PoolClient,
+  value: unknown,
+): Promise<FrozenRound> {
+  const input = roundInitializationSchema.parse(value);
+  const baseline = buildRoundBaseline(input);
+  const inserted = await client.query(
+    "INSERT INTO rounds (round_id, initialization, baseline) VALUES ($1, $2, $3) ON CONFLICT (round_id) DO NOTHING RETURNING round_id",
+    [input.roundId, input, baseline],
+  );
+  if (inserted.rowCount === 0) {
+    const existing = await client.query<{
+      baseline: unknown;
+      matches: boolean;
+    }>(
+      "SELECT baseline, initialization = $2::jsonb AS matches FROM rounds WHERE round_id = $1",
+      [input.roundId, input],
+    );
+    const row = existing.rows[0];
+    if (!row?.matches) throw new RoundInitializationConflict();
+    return frozenRoundSchema.parse(row.baseline);
+  }
+  await client.query(
+    `INSERT INTO game_events (round_id, sequence, event_id, schema_version, type, payload, cause_id, occurred_at_ms)
+     VALUES ($1, 1, $1, 1, 'RoundInitialized', $2, $1, $3)`,
+    [input.roundId, baseline, input.createdAtMs],
+  );
+  await client.query(
+    "INSERT INTO round_projections (round_id, sequence, schema_version, state) VALUES ($1, 1, 1, $2)",
+    [input.roundId, baseline.initialState],
+  );
+  return baseline;
 }
 
 export async function readRoundBaseline(

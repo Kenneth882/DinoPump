@@ -16,8 +16,8 @@ Verification: AC-01, AC-02, AC-05, AC-09, AC-11, AC-15, AC-17. Read the exact ca
 
 1. A player chooses a dinosaur avatar and a unique display name, then creates or joins the active room using its code.
 2. The lobby shows players, the fictional-currency notice, and a short explanation of buying, selling, and scoring.
-3. At least two connected players must mark themselves ready. The host starts a five-second countdown; joining and the participant list then lock.
-4. If fewer than two players remain connected before opening, the countdown returns to the lobby. Otherwise the round opens for the locked participants.
+3. At least two connected players must mark themselves ready. The host starts a five-second countdown; joining and the participant list then lock. All current lobby members, including unready or disconnected guests, become locked participants in join order.
+4. If fewer than two locked participants remain connected before opening, the countdown returns to the lobby, unlocks admission, and resets every player's readiness. Otherwise the round opens for all locked participants.
 5. Each participant begins with **D$10,000.00 cash and zero holdings**. The market remains open for **600 seconds**.
 6. Players buy and sell whole units, follow the feed, and monitor their portfolios. New participants cannot join an open round; existing participants can reconnect.
 7. Market events occur at elapsed seconds 60, 120, …, 540. There are nine events; no event occurs at the closing boundary.

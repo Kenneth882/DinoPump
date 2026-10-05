@@ -105,6 +105,9 @@ importers:
       '@dinopump/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@dinopump/engine':
+        specifier: workspace:*
+        version: link:../engine
       '@dinopump/game-content':
         specifier: workspace:*
         version: link:../game-content

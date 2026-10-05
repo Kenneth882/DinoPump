@@ -53,7 +53,9 @@ it("creates one durable active room atomically under concurrent creates and auth
   const result = outcomes.find((r) => r.status === "fulfilled");
   if (result?.status !== "fulfilled") throw new Error("No room");
   const snapshot = result.value;
-  expect(snapshot.players).toEqual([{ ...winner.player, connected: false }]);
+  expect(snapshot.players).toEqual([
+    { ...winner.player, connected: false, ready: false },
+  ]);
   expect(await store.snapshot(winner.secret, snapshot.code)).toMatchObject({
     hostId: winner.player.playerId,
   });
@@ -193,7 +195,7 @@ it("fails closed after the database ownership connection is lost, then recovers 
   await store.close();
   store = await LobbyStore.open(database.pool, () => now);
   expect((await store.snapshot(host.secret, room.code)).players).toEqual([
-    { ...host.player, connected: false },
+    { ...host.player, connected: false, ready: false },
   ]);
   expect((await store.connect(host.secret, room.code)).players).toHaveLength(1);
 });

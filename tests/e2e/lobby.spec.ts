@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("two guests create, join, and reconnect to the same lobby at 360px (AC-01/10/17 lobby subset)", async ({
+test("two guests join, reconnect, ready and observe the same authoritative opening at 360px (AC-01/02/10/17 subset)", async ({
   browser,
 }, testInfo) => {
   const hostContext = await browser.newContext();
@@ -88,6 +88,70 @@ test("two guests create, join, and reconnect to the same lobby at 360px (AC-01/1
     ).toHaveCount(2);
     await guest.screenshot({
       path: testInfo.outputPath("lobby-360.png"),
+      fullPage: true,
+    });
+    await expect(
+      host.getByRole("button", { name: "Start round", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      guest.getByRole("button", { name: "Start round", exact: true }),
+    ).toHaveCount(0);
+    await host
+      .getByRole("button", { name: "Ready for round", exact: true })
+      .focus();
+    await host.keyboard.press("Enter");
+    await guest
+      .getByRole("button", { name: "Ready for round", exact: true })
+      .click();
+    await expect(
+      host.getByRole("button", { name: "Start round", exact: true }),
+    ).toBeEnabled();
+    await host
+      .getByRole("button", { name: "Start round", exact: true })
+      .click();
+    await expect(guest.getByTestId("round-countdown")).toContainText(
+      "Round opens in",
+    );
+    for (const page of [host, guest]) {
+      await expect(
+        page.getByRole("heading", { name: "Opening resources" }),
+      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId("own-cash")).toHaveText("D$10,000.00");
+      await expect(page.getByTestId("round-remaining")).toContainText(
+        "Round closes in",
+      );
+    }
+    const read = async (page: typeof guest) =>
+      page.evaluate(
+        async (roomCode) =>
+          (await (await fetch(`/api/rooms/${roomCode}/snapshot`)).json()).round,
+        code,
+      );
+    const opening = await read(host);
+    expect(await read(guest)).toEqual(opening);
+    expect(opening.quotes).toHaveLength(24);
+    expect(opening.portfolio.holdings).toEqual({
+      FERN: 0,
+      AMBR: 0,
+      VOLC: 0,
+      BONE: 0,
+    });
+    await guestContext.setOffline(true);
+    await expect(
+      guest.getByRole("status").filter({ hasText: "Reconnecting" }),
+    ).toBeVisible();
+    await guestContext.setOffline(false);
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+    expect(await read(guest)).toEqual(opening);
+    expect(
+      await guest.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await guest.screenshot({
+      path: testInfo.outputPath("opening-360.png"),
       fullPage: true,
     });
   } finally {

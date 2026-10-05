@@ -6,3 +6,4 @@ export {
   RoundInitializationConflict,
 } from "./rounds.js";
 export { LobbyStore, LobbyError } from "./lobby.js";
+export { readOpenedRound } from "./opened-round.js";

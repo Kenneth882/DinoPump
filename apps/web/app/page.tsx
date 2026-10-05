@@ -10,7 +10,9 @@ export default function Home() {
         Welcome to the prehistoric market. Meet the fictional companies you’ll
         trade in Dino Dollars when the exchange opens.
       </p>
-      <p className="availability">Live rounds are not available yet.</p>
+      <p className="availability">
+        Ready your herd to open a round. Trading is coming next.
+      </p>
       <Lobby />
       <MarketBaseline />
       <footer>

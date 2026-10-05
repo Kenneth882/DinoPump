@@ -28,7 +28,7 @@ const pool = process.env.DATABASE_URL
   : undefined;
 const baseline = loadBaseline();
 const store = pool
-  ? await LobbyStore.open(pool, Date.now, baseline.rules.room)
+  ? await LobbyStore.open(pool, Date.now, baseline.rules.room, baseline)
   : undefined;
 const server = createGameServer(
   baseline,

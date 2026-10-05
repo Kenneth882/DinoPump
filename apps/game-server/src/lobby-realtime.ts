@@ -3,6 +3,7 @@ import { Server, type Socket } from "socket.io";
 import {
   lobbySubscriptionSchema,
   lobbyResyncSchema,
+  roundStartSchema,
 } from "@dinopump/contracts";
 import { LobbyError } from "@dinopump/database";
 import { safeError, sessionSecret, type LobbyOptions } from "./lobby-http.js";
@@ -82,6 +83,39 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     );
   });
   io.on("connection", (socket) => {
+    function commandError(payload: unknown, ack: unknown, error: unknown) {
+      const requestId = roundStartSchema.passthrough().safeParse(payload);
+      const body = {
+        ...safeError(error),
+        ...(requestId.success ? { requestId: requestId.data.requestId } : {}),
+      };
+      socket.emit("command:error", body);
+      if (typeof ack === "function") ack(body);
+    }
+    socket.on("round:start", (payload: unknown, ack: unknown) => {
+      void execute(async () => {
+        const member = members.get(socket);
+        if (!member) throw new LobbyError("FORBIDDEN");
+        return options.store.start(member.secret, member.code, payload);
+      }).then(
+        (outcome) => {
+          if (typeof ack === "function") ack(outcome);
+        },
+        (error: unknown) => commandError(payload, ack, error),
+      );
+    });
+    socket.on("room:ready", (payload: unknown, ack: unknown) => {
+      void execute(async () => {
+        const member = members.get(socket);
+        if (!member) throw new LobbyError("FORBIDDEN");
+        return options.store.ready(member.secret, member.code, payload);
+      }).then(
+        (outcome) => {
+          if (typeof ack === "function") ack(outcome);
+        },
+        (error: unknown) => commandError(payload, ack, error),
+      );
+    });
     socket.on("disconnect", () => {
       void execute(() => remove(socket)).catch(() => {});
     });

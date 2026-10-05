@@ -9,7 +9,7 @@
     "pnpm": "10.34.5"
   },
   "scripts": {
-    "dev": "pnpm build:shared && pnpm --parallel --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/database --filter @dinopump/web --filter @dinopump/game-server dev",
+    "dev": "pnpm build:shared && pnpm --parallel --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/engine --filter @dinopump/database --filter @dinopump/web --filter @dinopump/game-server dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm build:shared && tsc --noEmit -p tsconfig.tools.json && pnpm -r typecheck",
     "lint": "eslint . --max-warnings=0",
@@ -24,7 +24,7 @@
     "db:migrate": "pnpm --filter @dinopump/database migrate",
     "db:verify": "pnpm build:shared && node scripts/verify-database.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
-    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/database build"
+    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/engine --filter @dinopump/database build"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.3.5",
