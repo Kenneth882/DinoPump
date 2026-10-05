@@ -16,6 +16,7 @@ import {
   type EngineError,
   type EngineTransition,
 } from "@dinopump/contracts";
+import { adjustReferencePrice } from "./reference-price.js";
 import { executeBuy } from "./protected-buys.js";
 import { executeSell } from "./protected-sells.js";
 import { initializeBotQuotes, rebuildBotQuotes } from "./bot-quotes.js";
@@ -250,17 +251,10 @@ export function processEngineCommand(
         (a) => a.symbol === effect.symbol,
       )!;
       const beforeCents = asset.referencePriceCents;
-      const rounded =
-        (BigInt(beforeCents) * BigInt(10000 + effect.referenceChangeBps) +
-          5000n) /
-        10000n;
-      const { minCents, maxCents } = state.trading.market.rules.prices;
-      asset.referencePriceCents = Number(
-        rounded < BigInt(minCents)
-          ? BigInt(minCents)
-          : rounded > BigInt(maxCents)
-            ? BigInt(maxCents)
-            : rounded,
+      asset.referencePriceCents = adjustReferencePrice(
+        beforeCents,
+        effect.referenceChangeBps,
+        state.trading.market.rules.prices,
       );
       facts.push({
         type: "ReferencePriceAdjusted",

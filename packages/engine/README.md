@@ -166,5 +166,5 @@ I/O, randomness, or narration. The service still owns serialization, due-event
 catch-up, opening/closing clock authority, transaction boundaries, durable retries,
 event-ID mapping, visibility filtering and restart orchestration.
 
-See [ticket #6 validation evidence](../../../docs/validation/ticket-6-engine.md)
+See [ticket #6 validation evidence](../../docs/validation/ticket-6-engine.md)
 for acceptance coverage and the remaining service/browser gates.

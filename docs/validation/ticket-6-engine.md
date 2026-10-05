@@ -48,3 +48,27 @@ real timers, restart catch-up, public/private broadcast filtering, browser journ
 LLM availability, or full milestone 3/release acceptance. The new engine batch
 contract requires a future persistence adapter to retain the command and complete
 facts together; no database schema or service API is changed here.
+
+## Recorded run — October 4, 2026
+
+- New public-boundary suite: 21 tests passed, including a 300-command seeded
+  round and all nine effects. TDD slices were observed failing before the related
+  behavior was implemented; regression/boundary cases supplement those slices.
+- `pnpm typecheck`: passed during implementation and at the repository gate.
+- `pnpm check`: lint, formatting and typechecking passed. Its restricted test
+  run passed 189/190 tests; the existing real-HTTP integration test could not bind
+  `127.0.0.1` (`EPERM`).
+- `pnpm test && pnpm build`, rerun with localhost access: all 190 tests passed
+  across six files, followed by successful production builds of all packages/apps.
+  This confirmed the restricted failure was environmental.
+- Final `pnpm check` after the review refactor, with localhost access: passed
+  lint, formatting, typechecking, all 190 tests, and all production builds.
+- Independent Standards and Spec reviews against `3614078`: no remaining
+  findings. The Standards review suggested sharing reference adjustment arithmetic;
+  `adjustReferencePrice` now serves both order impacts and scheduled effects.
+  Follow-up review confirmed equivalent arithmetic and resolution of that smell.
+- Local links in changed documentation resolve. The complete reference and
+  focused requirement text are unchanged.
+
+This completes the milestone 2 pure-engine gate. Service/browser portions of
+these ACs remain subject to the limits above.

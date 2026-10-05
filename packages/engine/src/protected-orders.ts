@@ -6,6 +6,7 @@ import type {
   SellCommand,
   SellResult,
 } from "@dinopump/contracts";
+import { adjustReferencePrice } from "./reference-price.js";
 import { rebuildBotQuotes } from "./bot-quotes.js";
 
 type Rejection = Extract<BuyResult | SellResult, { ok: false }>;
@@ -64,21 +65,12 @@ export function completeOrder<
     const asset = state.market.assets.find(
       (entry) => entry.symbol === command.symbol,
     )!;
-    const rounded =
-      (BigInt(asset.referencePriceCents) *
-        BigInt(
-          10000 +
-            (command.side === "buy" ? 1 : -1) *
-              rules.bot.referenceImpactBpsPerFilledOrder,
-        ) +
-        5000n) /
-      10000n;
-    asset.referencePriceCents =
-      rounded > BigInt(rules.prices.maxCents)
-        ? rules.prices.maxCents
-        : rounded < BigInt(rules.prices.minCents)
-          ? rules.prices.minCents
-          : Number(rounded);
+    asset.referencePriceCents = adjustReferencePrice(
+      asset.referencePriceCents,
+      (command.side === "buy" ? 1 : -1) *
+        rules.bot.referenceImpactBpsPerFilledOrder,
+      rules.prices,
+    );
   }
   const replacement = rebuildBotQuotes(state.market);
   if (!replacement.ok)
