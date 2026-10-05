@@ -10,3 +10,5 @@ next-env.d.ts
 PROJECT_SPEC.md
 docs/spec
 AGENTS.md
+
+**/.next-e2e/**

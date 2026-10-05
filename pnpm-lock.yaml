@@ -29,6 +29,9 @@ importers:
       prettier:
         specifier: 3.9.8
         version: 3.9.8
+      socket.io-client:
+        specifier: 4.8.3
+        version: 4.8.3
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -49,12 +52,22 @@ importers:
       '@dinopump/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@dinopump/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@dinopump/game-content':
         specifier: workspace:*
         version: link:../../packages/game-content
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
       socket.io:
         specifier: 4.8.3
         version: 4.8.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
 
   apps/web:
     dependencies:

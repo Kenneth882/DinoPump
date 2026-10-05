@@ -124,3 +124,80 @@ footer p {
     min-height: 0;
   }
 }
+
+.lobby {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #52653c;
+  border-radius: 1rem;
+  background: #1b2b20;
+}
+.guest-form,
+.room-actions,
+.room-actions form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+label {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  background: #101c16;
+  color: #edf6ee;
+  border: 1px solid #8ba48e;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #f2cb7a;
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.room-code {
+  color: #f2cb7a;
+  letter-spacing: 0.12em;
+}
+.players {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+.players li {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #101c16;
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.dinosaur-avatar {
+  color: #b3ec8d;
+}
+[role="alert"] {
+  color: #ffce98;
+}
+@media (max-width: 540px) {
+  .lobby {
+    padding: 1rem;
+  }
+  .guest-form > *,
+  .room-actions > *,
+  .room-actions form > * {
+    width: 100%;
+  }
+}

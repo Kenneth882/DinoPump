@@ -9,7 +9,7 @@
     "pnpm": "10.34.5"
   },
   "scripts": {
-    "dev": "pnpm build:shared && pnpm --parallel --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/web --filter @dinopump/game-server dev",
+    "dev": "pnpm build:shared && pnpm --parallel --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/database --filter @dinopump/web --filter @dinopump/game-server dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm build:shared && tsc --noEmit -p tsconfig.tools.json && pnpm -r typecheck",
     "lint": "eslint . --max-warnings=0",
@@ -17,14 +17,14 @@
     "format:check": "prettier --check .",
     "test": "pnpm build:shared && vitest run",
     "test:watch": "pnpm build:shared && vitest",
-    "test:e2e": "pnpm build:shared && playwright test",
+    "test:e2e": "pnpm build:shared && node scripts/test-e2e.mjs",
     "db:up": "docker compose up -d --wait postgres",
     "db:stop": "docker compose stop postgres",
     "db:check": "pnpm --filter @dinopump/database check",
     "db:migrate": "pnpm --filter @dinopump/database migrate",
     "db:verify": "pnpm build:shared && node scripts/verify-database.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
-    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content build"
+    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/database build"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.3.5",
@@ -37,6 +37,7 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.1",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "socket.io-client": "4.8.3"
   }
 }

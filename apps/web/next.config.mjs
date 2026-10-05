@@ -8,6 +8,17 @@ const rootEnv = fileURLToPath(new URL("../../.env", import.meta.url));
 if (existsSync(rootEnv)) loadEnvFile(rootEnv);
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  skipTrailingSlashRedirect: true,
+  distDir: process.env.DINOPUMP_E2E === "1" ? ".next-e2e" : ".next",
+  async rewrites() {
+    return [
+      {
+        source: "/socket.io/:path*",
+        destination: `${process.env.GAME_SERVER_ORIGIN ?? "http://127.0.0.1:3001"}/socket.io/`,
+      },
+    ];
+  },
+};
 
 export default nextConfig;
