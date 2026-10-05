@@ -18,6 +18,8 @@ Verification: AC-01, AC-03–AC-06, AC-10, AC-11, AC-13, AC-17. Read the exact c
 
 Before live rounds are implemented, show Pangaea Exchange, the four canonical assets and their initial prices in Dino Dollars, “Fictional market game. Virtual currency only.”, and “Live rounds are not available yet.” Fetch the validated baseline from the game service at runtime; production builds must not require a running service. Do not add gameplay or configuration controls.
 
+During the opening-only implementation stage, the availability notice reads “Ready your herd to open a round. Trading is coming next.” The introduction retains initial-price labels; the opening view shows authoritative starting resources and quotes without trading controls.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby

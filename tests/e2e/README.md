@@ -6,4 +6,10 @@ Run `pnpm test:e2e` after installing Chromium with `pnpm exec playwright install
 
 These are supporting checks for ticket #1, not the complete player journey required by AC-17. Add multiplayer player-journey tests as gameplay is implemented.
 
-`lobby.spec.ts` demonstrates two independent guests creating/joining the same room, keyboard submission, real Socket.IO delivery, offline/reconnect and reload with unchanged player IDs, and the 360px lobby. Run it alone with `pnpm test:e2e tests/e2e/lobby.spec.ts`. This supports AC-01, AC-10 and AC-17 only for the lobby. Read [lobby contracts and setup](../../docs/lobby.md) for scope and deployment.
+`lobby.spec.ts` demonstrates two independent guests creating/joining the same room,
+keyboard submission, real Socket.IO delivery, offline/reconnect and reload with
+unchanged player IDs, readiness, host-only start, countdown, identical opening
+resources/quotes, and a 360px layout. It saves both lobby and opening screenshots.
+Run it alone with `pnpm test:e2e tests/e2e/lobby.spec.ts`. This supports AC-01/02 and
+opening-only AC-10/17. Read [lobby contracts and setup](../../docs/lobby.md) for
+scope and deployment.

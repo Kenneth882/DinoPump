@@ -10,7 +10,7 @@ Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, archite
 
 For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
 
-Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can now create or join one durable eight-player lobby, see authorized realtime presence, and reconnect with their existing identity. Live trading and narration are not implemented. See [guest lobby setup and contracts](docs/lobby.md).
+Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Trading, scheduled event execution, results, and narration remain later work. See [guest lobby setup and contracts](docs/lobby.md).
 
 ## Local setup
 
@@ -30,7 +30,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-The read-only introduction and its tests do not require PostgreSQL or an AI key; for introduction-only use, omit or empty `DATABASE_URL` and skip the database commands. Lobby features require PostgreSQL and migrations. Start Docker Desktop before `pnpm db:up`. Open <http://127.0.0.1:3000> for the web app. The service responds at <http://127.0.0.1:3001/health>; this checks process liveness only, not database readiness or gameplay. `Ctrl+C` stops the development processes. Run `nvm use` when opening a new terminal in this repository; installing Node with nvm does not replace your system Node.
+The read-only introduction and its tests do not require PostgreSQL or an AI key; for introduction-only use, omit or empty `DATABASE_URL` and skip the database commands. Lobby features require PostgreSQL and migrations. Start Docker Desktop before `pnpm db:up`. Open <http://127.0.0.1:3000> for the web app. The service responds at <http://127.0.0.1:3001/health>; this remains a liveness alias for `/healthz`. `/readyz` checks owned database access and supported authoritative state. `Ctrl+C` stops the development processes. Run `nvm use` when opening a new terminal in this repository; installing Node with nvm does not replace your system Node.
 
 The root `.env` contains synthetic local database credentials and is ignored by Git. PostgreSQL **18.6** runs in Docker, binds only to `127.0.0.1:55432`, and stores data in the `dinopump_postgres-data` volume. `pnpm db:stop` stops PostgreSQL while preserving its data. If port 55432 is occupied, change both `POSTGRES_PORT` and the port in `DATABASE_URL` in `.env`. No AI API key is needed.
 
@@ -55,7 +55,7 @@ The game service exposes `GET /api/market-baseline`. Its public response contain
 | `pnpm format:check` | Check formatting without changing files                       |
 | `pnpm format`       | Format implementation files; preserve specification extracts  |
 | `pnpm test`         | Run content/contract, engine, and HTTP integration tests      |
-| `pnpm test:e2e`     | Run baseline and two-guest lobby browser checks               |
+| `pnpm test:e2e`     | Run baseline and two-guest round-opening browser checks       |
 | `pnpm check`        | Run lint, formatting, types, Vitest, and production build     |
 | `pnpm db:up`        | Start PostgreSQL and wait for its health check                |
 | `pnpm db:check`     | Verify an authenticated database connection with `SELECT 1`   |

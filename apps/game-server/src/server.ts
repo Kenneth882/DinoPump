@@ -26,7 +26,27 @@ export function createGameServer(
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Cache-Control", "no-store");
     const path = request.url?.split("?", 1)[0];
-    if (path === "/api/market-baseline" || path === "/health") {
+    if (path === "/readyz") {
+      if (request.method !== "GET") {
+        response.statusCode = 405;
+        response.setHeader("Allow", "GET");
+        response.end(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }));
+        return;
+      }
+      void (async () => {
+        const ready = (await lobby?.store.isReady()) ?? false;
+        response.statusCode = ready ? 200 : 503;
+        response.end(
+          JSON.stringify({ status: ready ? "ready" : "unavailable" }),
+        );
+      })();
+      return;
+    }
+    if (
+      path === "/api/market-baseline" ||
+      path === "/health" ||
+      path === "/healthz"
+    ) {
       if (request.method !== "GET") {
         response.statusCode = 405;
         response.setHeader("Allow", "GET");
@@ -34,7 +54,9 @@ export function createGameServer(
         return;
       }
       response.end(
-        path === "/health" ? JSON.stringify({ status: "ok" }) : publicBaseline,
+        path !== "/api/market-baseline"
+          ? JSON.stringify({ status: "ok" })
+          : publicBaseline,
       );
       return;
     }

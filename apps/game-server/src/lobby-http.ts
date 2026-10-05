@@ -36,6 +36,9 @@ const statuses: Record<LobbyErrorCode, number> = {
   ROOM_FULL: 409,
   NAME_TAKEN: 409,
   JOIN_LOCKED: 409,
+  INVALID_ROOM_STATE: 409,
+  NOT_ENOUGH_READY_PLAYERS: 409,
+  IDEMPOTENCY_CONFLICT: 409,
   SERVICE_UNAVAILABLE: 503,
 };
 async function readBody(request: IncomingMessage): Promise<unknown> {

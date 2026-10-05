@@ -19,7 +19,7 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | ID | Required acceptance criterion |
 | --- | --- |
 | AC-01 | Two to eight guests can enter a lobby; a ninth is rejected; an open round rejects new participants. |
-| AC-02 | The versioned baseline validates the canonical four assets and all documented gameplay defaults. A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once. |
+| AC-02 | The versioned baseline validates the canonical four assets and all documented gameplay defaults. A valid start initializes exactly four assets, D$10,000 per player, and the configured bot resources once for all locked lobby members in join order. A cancelled countdown resets readiness and unlocks joining without funding participants. |
 | AC-03 | A buy fills the cheapest eligible asks and updates buyer and bot ledgers correctly. At asks D$40.40 and D$40.80, buying 150 units fills 100 and 50 for D$6,080.00. With a D$41.00 protection, buyer cash becomes D$3,920.00. |
 | AC-04 | Selling owned units fills highest eligible bids and transfers the exact cash and units; overselling and underfunded buys have no ledger effects. |
 | AC-05 | Invalid values, unknown assets, unauthenticated commands, and closed-round orders are rejected with stable codes. Invalid baseline assets, defaults, or catalog entries prevent service startup with field-specific validation errors. |

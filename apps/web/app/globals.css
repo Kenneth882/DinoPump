@@ -188,6 +188,25 @@ button:disabled {
 .dinosaur-avatar {
   color: #b3ec8d;
 }
+.round-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.opening-assets {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 1rem;
+}
+.opening-assets > li {
+  padding: 1rem;
+  border: 1px solid #52653c;
+  border-radius: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
 [role="alert"] {
   color: #ffce98;
 }
