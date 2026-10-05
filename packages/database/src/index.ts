@@ -5,3 +5,4 @@ export {
   readRoundRecovery,
   RoundInitializationConflict,
 } from "./rounds.js";
+export { LobbyStore, LobbyError } from "./lobby.js";

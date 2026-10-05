@@ -72,8 +72,17 @@ test("keeps the introduction during failure and retries with the real service", 
     page.getByText("Fictional market game. Virtual currency only."),
   ).toBeVisible();
   await page.unroute("**/api/market-baseline");
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Retry" })).toBeFocused();
+  // The guest form now precedes Retry in the natural keyboard order.
+  const retry = page.getByRole("button", { name: "Retry" });
+  for (
+    let i = 0;
+    i < 6 &&
+    !(await retry.evaluate((button) => button === document.activeElement));
+    i++
+  ) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(retry).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("listitem")).toHaveCount(4);
   await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);

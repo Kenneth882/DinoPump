@@ -1,3 +1,4 @@
+import { Lobby } from "./lobby";
 import { MarketBaseline } from "./market-baseline";
 
 export default function Home() {
@@ -10,9 +11,9 @@ export default function Home() {
         trade in Dino Dollars when the exchange opens.
       </p>
       <p className="availability">Live rounds are not available yet.</p>
+      <Lobby />
       <MarketBaseline />
       <footer>
-        <p>Fictional market game. Virtual currency only.</p>
         <p>Dino Dollars cannot be bought, withdrawn, or redeemed.</p>
       </footer>
     </main>

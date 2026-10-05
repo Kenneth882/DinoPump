@@ -1,3 +1,5 @@
+import { attachLobby } from "./lobby-realtime.js";
+import { lobbyHttp, type LobbyOptions } from "./lobby-http.js";
 import { createServer } from "node:http";
 import {
   baselineSchema,
@@ -5,7 +7,10 @@ import {
 } from "@dinopump/contracts";
 import { loadBaseline } from "@dinopump/game-content";
 
-export function createGameServer(content: unknown = loadBaseline()) {
+export function createGameServer(
+  content: unknown = loadBaseline(),
+  lobby?: LobbyOptions,
+) {
   // Validate before creating a listener, including content unused by this endpoint.
   const baseline = baselineSchema.parse(content);
   const publicBaseline = JSON.stringify(
@@ -17,7 +22,7 @@ export function createGameServer(content: unknown = loadBaseline()) {
     }),
   );
 
-  return createServer((request, response) => {
+  const server = createServer((request, response) => {
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Cache-Control", "no-store");
     const path = request.url?.split("?", 1)[0];
@@ -33,7 +38,13 @@ export function createGameServer(content: unknown = loadBaseline()) {
       );
       return;
     }
+    if (lobby) {
+      void lobbyHttp(request, response, lobby);
+      return;
+    }
     response.statusCode = 404;
     response.end(JSON.stringify({ error: "NOT_FOUND" }));
   });
+  if (lobby) lobby.execute = attachLobby(server, lobby);
+  return server;
 }

@@ -12,6 +12,11 @@
   "dependencies": {
     "socket.io": "4.8.3",
     "@dinopump/contracts": "workspace:*",
-    "@dinopump/game-content": "workspace:*"
+    "@dinopump/game-content": "workspace:*",
+    "@dinopump/database": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
   }
 }

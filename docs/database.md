@@ -1,4 +1,4 @@
-# Frozen round storage
+# Database storage
 
 Ticket [#2](https://github.com/Kenneth882/DinoPump/issues/2) implements the persistence foundation in [§8](spec/persistence.md), using the round rules in [§4](spec/round-lifecycle.md) and event authority in [§10](spec/events-and-narration.md). These are internal server APIs; the HTTP introduction still excludes schedules and private resources.
 
@@ -43,3 +43,7 @@ The round ID is the initialization idempotency key. Concurrent identical request
 This is partial supporting evidence for **AC-02, AC-09, AC-12, and AC-15**. Live funding/opening, event application, gameplay replay, restart catch-up, settlement, and browser round acceptance remain unimplemented. Later slices extend the schema-versioned events and projections; the current recovery contract accepts only initialization.
 
 Validation recorded October 2, 2026: `pnpm db:verify` passed all 17 PostgreSQL cases and cleaned up its disposable container; `pnpm check` passed lint, formatting, typechecking, all 38 existing tests, and production builds. Changed documentation links resolved. Standards review reported no findings; the spec review's UUID-casing finding was fixed, regression-tested, and re-reviewed with no remaining findings. Browser tests were not rerun for this internal persistence change.
+
+## Guest lobby storage
+
+Migration 2 adds guests, rooms, membership, and lifecycle records without changing frozen rounds. The game service owns the single lobby using a dedicated PostgreSQL advisory-lock connection. See [lobby persistence, security, recovery, and verification](lobby.md) for the new API and deadlines. `pnpm db:verify` now also runs isolated database-backed HTTP and Socket.IO lobby tests.

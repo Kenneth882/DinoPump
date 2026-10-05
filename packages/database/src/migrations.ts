@@ -40,6 +40,46 @@ const migrations = [
       );
     `,
   },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE guest_sessions (
+        player_id uuid PRIMARY KEY,
+        display_name text NOT NULL,
+        normalized_name text NOT NULL,
+        avatar text NOT NULL,
+        secret_hash text NOT NULL UNIQUE,
+        expires_at_ms bigint NOT NULL
+      );
+      CREATE TABLE rooms (
+        code text PRIMARY KEY,
+        host_id uuid NOT NULL REFERENCES guest_sessions(player_id),
+        status text NOT NULL DEFAULT 'LOBBY' CHECK (status IN ('LOBBY','COUNTDOWN','OPEN','SETTLING','FINISHED','ABORTED','EXPIRED')),
+        current_round_id uuid REFERENCES rounds(round_id),
+        sequence integer NOT NULL DEFAULT 1,
+        host_transfer_at bigint,
+        expires_at bigint
+      );
+      CREATE UNIQUE INDEX one_active_room ON rooms ((true)) WHERE status <> 'EXPIRED';
+      CREATE TABLE room_members (
+        code text NOT NULL REFERENCES rooms(code),
+        player_id uuid NOT NULL REFERENCES guest_sessions(player_id),
+        normalized_name text NOT NULL,
+        join_order integer NOT NULL CHECK (join_order BETWEEN 0 AND 7),
+        connected_at bigint,
+        PRIMARY KEY (code, player_id),
+        UNIQUE (code, normalized_name),
+        UNIQUE (code, join_order)
+      );
+      CREATE TABLE room_lifecycle (
+        id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        code text NOT NULL REFERENCES rooms(code),
+        type text NOT NULL,
+        player_id uuid REFERENCES guest_sessions(player_id),
+        occurred_at_ms bigint NOT NULL
+      );
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */

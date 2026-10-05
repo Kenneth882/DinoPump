@@ -43,13 +43,13 @@ afterEach(async () => {
 });
 
 it("migrates a fresh database and safely repeats migration", async () => {
-  expect(await migrate(pool)).toEqual([1]);
+  expect(await migrate(pool)).toEqual([1, 2]);
   expect(await migrate(pool)).toEqual([]);
 });
 
 it("serializes concurrent migration runners", async () => {
   const results = await Promise.all([migrate(pool), migrate(pool)]);
-  expect(results.flat()).toEqual([1]);
+  expect(results.flat()).toEqual([1, 2]);
 });
 
 const participantIds = [
