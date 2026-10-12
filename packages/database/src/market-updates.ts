@@ -15,8 +15,37 @@ export async function readMarketUpdates(
   afterSequence: number,
   serverTime: number,
 ) {
+  const current = await client.query(
+    "SELECT batch,public_view FROM round_batches WHERE round_id=$1 AND end_sequence>$2 ORDER BY end_sequence",
+    [verified.round.roundId, afterSequence],
+  );
+  if (current.rows.every((row) => row.public_view)) {
+    const news = (
+      await client.query(
+        "SELECT item FROM news_items WHERE round_id=$1 AND (item->>'sequence')::bigint>$2",
+        [verified.round.roundId, afterSequence],
+      )
+    ).rows.map((row) => newsItemSchema.parse(row.item));
+    return current.rows.map((row) => {
+      const batch = engineBatchSchema.parse(row.batch);
+      const startSequence = batch.events[0]!.sequence;
+      const endSequence = batch.events.at(-1)!.sequence;
+      return marketBatchSchema.parse({
+        roundId: verified.round.roundId,
+        startSequence,
+        endSequence,
+        serverTime,
+        ...row.public_view,
+        news: news.filter(
+          (item) =>
+            item.sequence >= startSequence && item.sequence <= endSequence,
+        ),
+      });
+    });
+  }
+  // Pre-migration histories have no materialized public view; reconstruct on recovery.
   const rows = await client.query(
-    "SELECT batch FROM round_batches WHERE round_id=$1 ORDER BY end_sequence",
+    "SELECT batch,public_view FROM round_batches WHERE round_id=$1 ORDER BY end_sequence",
     [verified.round.roundId],
   );
   const news = (
@@ -28,11 +57,14 @@ export async function readMarketUpdates(
   if (!opening.ok) throw new Error("Invalid opening");
   let state = opening.state;
   const updates = [];
+  let view = publicMarketView(state, opening.batch);
   for (const row of rows.rows.slice(1)) {
     const batch = engineBatchSchema.parse(row.batch);
     const reduced = reduceEngineBatch(state, batch);
     if (!reduced.ok) throw new Error("Invalid market batch");
     state = reduced.state;
+    view =
+      row.public_view ?? publicMarketView(state, batch, view.quoteUpdatedAtMs);
     if (state.sequence <= afterSequence) continue;
     const startSequence = batch.events[0]!.sequence;
     updates.push(
@@ -41,7 +73,7 @@ export async function readMarketUpdates(
         startSequence,
         endSequence: state.sequence,
         serverTime,
-        ...publicMarketView(state),
+        ...view,
         news: news.filter(
           (item) =>
             item.sequence >= startSequence && item.sequence <= state.sequence,

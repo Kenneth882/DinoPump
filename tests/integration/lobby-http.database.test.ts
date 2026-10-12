@@ -487,3 +487,383 @@ it("keeps scheduling without sockets and records healthy due-to-commit lag below
     log.mockRestore();
   }
 });
+it("delivers complete committed trades to peers and private original outcomes only to the owner's sessions (AC-03/07/10)", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  const first = await connectGuest(host, room.code),
+    otherOwner = await connectGuest(host, room.code),
+    second = await connectGuest(guest, room.code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  const read = () =>
+    first
+      .timeout(2000)
+      .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  await expect.poll(async () => (await read()).snapshot.status).toBe("OPEN");
+  const opening = (await read()).snapshot.round;
+  const publicFirst: unknown[] = [],
+    publicSecond: unknown[] = [],
+    own: unknown[] = [],
+    ownTab: unknown[] = [],
+    foreign: unknown[] = [];
+  first.on("market:batch", (x) => publicFirst.push(x));
+  second.on("market:batch", (x) => publicSecond.push(x));
+  first.on("order:result", (x) => own.push(x));
+  otherOwner.on("order:result", (x) => ownTab.push(x));
+  second.on("order:result", (x) => foreign.push(x));
+  const payload = {
+    roundId: opening.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  };
+  const result = await first.timeout(2000).emitWithAck("order:submit", payload);
+  expect(result).toMatchObject({
+    requestId: payload.requestId,
+    status: "FILLED",
+    totalValueCents: 608000,
+    portfolio: { cashCents: 392000 },
+  });
+  await expect.poll(() => ownTab.length).toBe(1);
+  await expect.poll(() => publicSecond.length).toBe(1);
+  expect(own).toEqual([result]);
+  expect(ownTab).toEqual([result]);
+  expect(foreign).toEqual([]);
+  expect(publicSecond).toEqual(publicFirst);
+  expect(publicFirst[0]).toMatchObject({
+    startSequence: 4,
+    endSequence: result.sequence,
+    trades: [
+      { quantity: 100, priceCents: 4040 },
+      { quantity: 50, priceCents: 4080 },
+    ],
+    totals: expect.any(Array),
+  });
+  expect(JSON.stringify(publicFirst)).not.toMatch(
+    /protectionPriceCents|holdings|requestId/,
+  );
+  expect(
+    await otherOwner.timeout(2000).emitWithAck("order:submit", payload),
+  ).toEqual(result);
+  expect(publicFirst).toHaveLength(1);
+  const peer = await second
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  expect(peer.snapshot.round.portfolio.cashCents).toBe(1000000);
+  expect(peer.snapshot.round.recentOrders).toEqual([]);
+  expect(
+    await first
+      .timeout(2000)
+      .emitWithAck("order:submit", { ...payload, playerId: room.hostId }),
+  ).toMatchObject({ error: "INVALID_REQUEST", requestId: payload.requestId });
+});
+it("recovers a committed order after delivery failure and restart without a second execution (AC-14 subset)", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  let first = await connectGuest(host, room.code);
+  const second = await connectGuest(guest, room.code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await expect
+    .poll(
+      async () =>
+        (
+          await first.timeout(2000).emitWithAck("room:resync", {
+            code: room.code,
+            requestId: randomUUID(),
+          })
+        ).snapshot.status,
+    )
+    .toBe("OPEN");
+  const view = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  const payload = {
+    roundId: view.snapshot.round.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  };
+  const submit = store.submitOrder.bind(store);
+  // Persistence is the service's external I/O seam: lose the response after its commit.
+  const loss = vi
+    .spyOn(store, "submitOrder")
+    .mockImplementationOnce(async (...args) => {
+      await submit(...args);
+      throw new Error("synthetic postcommit delivery loss");
+    });
+  expect(
+    await first.timeout(2000).emitWithAck("order:submit", payload),
+  ).toMatchObject({ error: "SERVICE_UNAVAILABLE" });
+  loss.mockRestore();
+  sockets.splice(0).forEach((socket) => socket.disconnect());
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await store.close();
+  store = await LobbyStore.open(database.pool, () => now);
+  server = createGameServer(undefined, {
+    store,
+    webOrigin,
+    secureCookies: true,
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Missing listener");
+  origin = `http://127.0.0.1:${address.port}`;
+  first = await connectGuest(host, room.code);
+  const restored = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  const original = restored.snapshot.round.recentOrders[0];
+  expect(original).toMatchObject({
+    requestId: payload.requestId,
+    totalValueCents: 608000,
+  });
+  const trades: unknown[] = [];
+  first.on("market:batch", (x) => trades.push(x));
+  expect(
+    await first.timeout(2000).emitWithAck("order:submit", payload),
+  ).toEqual(original);
+  expect(trades).toEqual([]);
+  expect(restored.snapshot.round.trades).toHaveLength(2);
+});
+it("shares one player's order burst across two authenticated sockets", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  const first = await connectGuest(host, room.code),
+    tab = await connectGuest(host, room.code),
+    second = await connectGuest(guest, room.code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await expect
+    .poll(
+      async () =>
+        (
+          await first.timeout(2000).emitWithAck("room:resync", {
+            code: room.code,
+            requestId: randomUUID(),
+          })
+        ).snapshot.status,
+    )
+    .toBe("OPEN");
+  const view = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  const payload = {
+    roundId: view.snapshot.round.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 1,
+    protectionPriceCents: 100,
+  };
+  for (let i = 0; i < 10; i++)
+    expect(
+      await (i % 2 ? tab : first)
+        .timeout(2000)
+        .emitWithAck("order:submit", payload),
+    ).toMatchObject({ status: "NO_LIQUIDITY_WITHIN_PROTECTION" });
+  expect(
+    await tab.timeout(2000).emitWithAck("order:submit", payload),
+  ).toMatchObject({ error: "RATE_LIMITED", requestId: payload.requestId });
+  now += 200;
+  expect(
+    await tab.timeout(2000).emitWithAck("order:submit", payload),
+  ).toMatchObject({ status: "NO_LIQUIDITY_WITHIN_PROTECTION" });
+});
+it("measures eight-client acknowledgements, delivery, snapshots and scheduler lag as trade history grows", async () => {
+  const cookies = [];
+  for (let i = 0; i < 8; i++) cookies.push(await session(`Player ${i}`));
+  const room = await (await post("/api/rooms", {}, cookies[0])).json();
+  const clients: Socket[] = [];
+  for (const [i, cookie] of cookies.entries()) {
+    if (i) await post(`/api/rooms/${room.code}/join`, {}, cookie);
+    clients.push(await connectGuest(cookie, room.code));
+  }
+  for (const client of clients)
+    await client
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await clients[0]!
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await expect
+    .poll(
+      async () =>
+        (
+          await clients[0]!.timeout(2000).emitWithAck("room:resync", {
+            code: room.code,
+            requestId: randomUUID(),
+          })
+        ).snapshot.status,
+    )
+    .toBe("OPEN");
+  const view = await clients[0]!
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  const deliveries: number[] = [];
+  const started = new Map<number, number>();
+  clients[0]!.on("market:batch", (batch) => {
+    const at = started.get(batch.endSequence);
+    if (at !== undefined) deliveries.push(performance.now() - at);
+  });
+  const submit = store.submitOrder.bind(store);
+  const timing = vi
+    .spyOn(store, "submitOrder")
+    .mockImplementation(async (...args) => {
+      const result = await submit(...args);
+      started.set(result.sequence, performance.now());
+      return result;
+    });
+  const report = [];
+  for (let window = 0; window < 3; window++) {
+    const latencies: number[] = [];
+    for (let epoch = 0; epoch < 10; epoch++) {
+      now += 200;
+      const results = await Promise.all(
+        clients.map(async (client) => {
+          const start = performance.now();
+          const result = await client
+            .timeout(5000)
+            .emitWithAck("order:submit", {
+              roundId: view.snapshot.round.roundId,
+              requestId: randomUUID(),
+              symbol: "FERN",
+              side: epoch % 2 ? "sell" : "buy",
+              quantity: 1,
+              protectionPriceCents: epoch % 2 ? 100 : 10000,
+            });
+          latencies.push(performance.now() - start);
+          return result;
+        }),
+      );
+      expect(results.every((result) => result.status === "FILLED")).toBe(true);
+    }
+    latencies.sort((a, b) => a - b);
+    const snapshotStart = performance.now();
+    const snapshot = await clients[0]!
+      .timeout(5000)
+      .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+    report.push({
+      orders: (window + 1) * 80,
+      ackP95Ms: Math.round(latencies[Math.ceil(latencies.length * 0.95) - 1]!),
+      snapshotMs: Math.round(performance.now() - snapshotStart),
+      sequence: snapshot.snapshot.round.sequence,
+    });
+  }
+  timing.mockRestore();
+  deliveries.sort((a, b) => a - b);
+  now = view.snapshot.round.opensAt + 60000;
+  const lag = await store.processDue();
+  expect(lag).toHaveLength(1);
+  const schedulerStart = performance.now();
+  await store.processDue();
+  console.info(
+    JSON.stringify({
+      event: "trading.local_measurement",
+      report,
+      deliveryP95Ms: Math.round(
+        deliveries[Math.ceil(deliveries.length * 0.95) - 1]!,
+      ),
+      schedulerNoopMs: Math.round(performance.now() - schedulerStart),
+      scheduledLagMs: lag[0]?.lagMs,
+    }),
+  );
+}, 60000);
+it("publishes no trade or successful result when a fill write rolls back", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  const first = await connectGuest(host, room.code),
+    second = await connectGuest(guest, room.code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await expect
+    .poll(
+      async () =>
+        (
+          await first.timeout(2000).emitWithAck("room:resync", {
+            code: room.code,
+            requestId: randomUUID(),
+          })
+        ).snapshot.status,
+    )
+    .toBe("OPEN");
+  const view = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  const payload = {
+    roundId: view.snapshot.round.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  };
+  const batches: unknown[] = [],
+    results: unknown[] = [];
+  first.on("market:batch", (x) => batches.push(x));
+  first.on("order:result", (x) => results.push(x));
+  await database.pool.query(
+    `CREATE FUNCTION fail_trade() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic fill failure'; END $$; CREATE TRIGGER fail_trade BEFORE INSERT ON trades FOR EACH ROW EXECUTE FUNCTION fail_trade()`,
+  );
+  expect(
+    await first.timeout(2000).emitWithAck("order:submit", payload),
+  ).toMatchObject({
+    error: "SERVICE_UNAVAILABLE",
+    requestId: payload.requestId,
+  });
+  expect(batches).toEqual([]);
+  expect(results).toEqual([]);
+  const unchanged = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  expect(unchanged.snapshot.round).toEqual(view.snapshot.round);
+  await database.pool.query("DROP TRIGGER fail_trade ON trades");
+  expect(
+    await first.timeout(2000).emitWithAck("order:submit", payload),
+  ).toMatchObject({ status: "FILLED" });
+  expect(batches).toHaveLength(1);
+  expect(results).toHaveLength(1);
+});

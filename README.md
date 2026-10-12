@@ -10,7 +10,7 @@ Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, archite
 
 For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
 
-Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Nine scheduled events now update reference prices and quotes atomically with immediate Daily Roar news and persisted narration jobs. Trading, results, and generated narration remain later work. See [guest lobby setup and contracts](docs/lobby.md).
+Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Nine scheduled events now update reference prices and quotes atomically with immediate Daily Roar news and persisted narration jobs. Participants can now buy and sell through a minimal protected ticket with atomic durable outcomes, private ledgers, public executions/totals, and retry/reconnect reconciliation. Results, the full terminal, and generated narration remain later work. See [trading evidence](docs/validation/ticket-10-trading.md). See [guest lobby setup and contracts](docs/lobby.md).
 
 ## Local setup
 
@@ -46,22 +46,22 @@ The game service exposes `GET /api/market-baseline`. Its public response contain
 
 ## Development commands
 
-| Command             | Purpose                                                       |
-| ------------------- | ------------------------------------------------------------- |
-| `pnpm dev`          | Build/watch shared packages, web app, and game service        |
-| `pnpm build`        | Compile workspace packages and build the Next.js app          |
-| `pnpm lint`         | Run ESLint across application and tooling code                |
-| `pnpm typecheck`    | Check application, package, and test/tool configuration types |
-| `pnpm format:check` | Check formatting without changing files                       |
-| `pnpm format`       | Format implementation files; preserve specification extracts  |
-| `pnpm test`         | Run content/contract, engine, and HTTP integration tests      |
-| `pnpm test:e2e`     | Run baseline and two-guest round-opening browser checks       |
-| `pnpm check`        | Run lint, formatting, types, Vitest, and production build     |
-| `pnpm db:up`        | Start PostgreSQL and wait for its health check                |
-| `pnpm db:check`     | Verify an authenticated database connection with `SELECT 1`   |
-| `pnpm db:migrate`   | Apply pending migrations; safely repeat to confirm readiness  |
-| `pnpm db:verify`    | Run isolated PostgreSQL integration tests and clean up        |
-| `pnpm db:stop`      | Stop PostgreSQL without deleting its volume                   |
+| Command             | Purpose                                                          |
+| ------------------- | ---------------------------------------------------------------- |
+| `pnpm dev`          | Build/watch shared packages, web app, and game service           |
+| `pnpm build`        | Compile workspace packages and build the Next.js app             |
+| `pnpm lint`         | Run ESLint across application and tooling code                   |
+| `pnpm typecheck`    | Check application, package, and test/tool configuration types    |
+| `pnpm format:check` | Check formatting without changing files                          |
+| `pnpm format`       | Format implementation files; preserve specification extracts     |
+| `pnpm test`         | Run content/contract, engine, and HTTP integration tests         |
+| `pnpm test:e2e`     | Run baseline and two-guest trading/reconnect/news browser checks |
+| `pnpm check`        | Run lint, formatting, types, Vitest, and production build        |
+| `pnpm db:up`        | Start PostgreSQL and wait for its health check                   |
+| `pnpm db:check`     | Verify an authenticated database connection with `SELECT 1`      |
+| `pnpm db:migrate`   | Apply pending migrations; safely repeat to confirm readiness     |
+| `pnpm db:verify`    | Run isolated PostgreSQL integration tests and clean up           |
+| `pnpm db:stop`      | Stop PostgreSQL without deleting its volume                      |
 
 Install the Playwright browser once per machine with `pnpm exec playwright install chromium`. The E2E harness starts disposable PostgreSQL on 55433, a web app on 3100 with a separate `.next-e2e` directory, and a game service on 3101. Keep those ports free; do not run `db:verify` simultaneously. See [lobby verification](docs/lobby.md#validation-boundaries).
 

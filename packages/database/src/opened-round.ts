@@ -1,3 +1,5 @@
+import { publicMarketView } from "./market-view.js";
+import { orderOutcome } from "./orders.js";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { Pool, PoolClient } from "pg";
@@ -7,8 +9,10 @@ import {
   type EngineState,
   type EngineBatch,
   newsItemSchema,
+  orderSubmitSchema,
+  orderResultSchema,
 } from "@dinopump/contracts";
-import { startEngineRound, replayEngine } from "@dinopump/engine";
+import { startEngineRound, reduceEngineBatch } from "@dinopump/engine";
 import { newsFromBatch, narrationInput } from "./news.js";
 import { insertRoundBaseline } from "./rounds.js";
 
@@ -49,11 +53,21 @@ export async function persistEngineBatch(
       ],
     );
   }
-  await client.query("INSERT INTO round_batches VALUES ($1,$2,$3)", [
-    state.round.roundId,
-    state.sequence,
+  const previous = (
+    await client.query(
+      "SELECT public_view FROM round_batches WHERE round_id=$1 ORDER BY end_sequence DESC LIMIT 1",
+      [state.round.roundId],
+    )
+  ).rows[0]?.public_view;
+  const view = publicMarketView(
+    state,
     batch,
-  ]);
+    previous?.quoteUpdatedAtMs ?? state.round.opensAtMs,
+  );
+  await client.query(
+    "INSERT INTO round_batches (round_id,end_sequence,batch,public_view) VALUES ($1,$2,$3,$4)",
+    [state.round.roundId, state.sequence, batch, view],
+  );
   await client.query(
     "UPDATE round_projections SET sequence=$2,state=$3 WHERE round_id=$1",
     [state.round.roundId, state.sequence, state],
@@ -75,6 +89,9 @@ export async function readOpenedRound(
     (SELECT jsonb_agg(jsonb_build_object('item',n.item,'input',j.input,'sourceSequence',e.sequence) ORDER BY e.sequence)
       FROM news_items n JOIN game_events e ON e.event_id=n.source_event_id
       LEFT JOIN commentary_jobs j USING(source_event_id) WHERE n.round_id=r.round_id) AS news,
+    (SELECT jsonb_agg(jsonb_build_object('playerId',player_id,'request',request,'outcome',outcome,'sequence',committed_sequence,'atMs',processed_at_ms)) FROM orders WHERE round_id=r.round_id) AS orders,
+    (SELECT jsonb_agg(jsonb_build_object('sequence',sequence,'playerId',player_id,'requestId',request_id,'fill',fill) ORDER BY sequence) FROM trades WHERE round_id=r.round_id) AS trades,
+    (SELECT jsonb_agg(public_view ORDER BY end_sequence) FROM round_batches WHERE round_id=r.round_id) AS views,
     (SELECT state FROM round_projections WHERE round_id=r.round_id) AS projection,
     (SELECT sequence FROM round_projections WHERE round_id=r.round_id) AS projection_sequence
     FROM rounds r WHERE round_id=$1`,
@@ -83,8 +100,98 @@ export async function readOpenedRound(
   const row = result.rows[0];
   if (!row) return null;
   const round = frozenRoundSchema.parse(row.baseline);
-  const replayed = replayEngine(round, row.batches);
-  if (!replayed.ok) throw new Error("Round history failed replay");
+  const opened = startEngineRound(round);
+  if (!opened.ok) throw new Error("Invalid opening");
+  let state = opened.state;
+  const states = new Map<number, EngineState>([[state.sequence, state]]);
+  const expectedTrades: unknown[] = [];
+  let view = publicMarketView(state, opened.batch);
+  const batches = row.batches as EngineBatch[];
+  if (!isDeepStrictEqual(batches[0], opened.batch))
+    throw new Error("Opening history disagrees");
+  for (const [index, batch] of batches.entries()) {
+    if (index) {
+      const reduced = reduceEngineBatch(state, batch);
+      if (!reduced.ok) throw new Error("Round history failed replay");
+      state = reduced.state;
+      states.set(state.sequence, state);
+      view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
+    }
+    if (row.views[index] && !isDeepStrictEqual(row.views[index], view))
+      throw new Error("Public view disagrees with history");
+    if (batch.command.type === "SubmitOrder") {
+      const owner = batch.command.order.playerId;
+      for (const event of batch.events)
+        if (event.type === "TradeExecuted")
+          expectedTrades.push({
+            sequence: event.sequence,
+            playerId: owner,
+            requestId: batch.command.order.requestId,
+            fill: event.payload,
+          });
+    }
+  }
+  const replayed = { state };
+  if (!isDeepStrictEqual(row.trades ?? [], expectedTrades))
+    throw new Error("Trade records disagree with history");
+  const orders = row.orders ?? [];
+  const identities = new Set<string>();
+  for (const record of orders) {
+    const request = orderSubmitSchema.parse(record.request);
+    const outcome = orderResultSchema.parse(record.outcome);
+    const anchor = states.get(Number(record.sequence));
+    if (!anchor || request.roundId !== roundId)
+      throw new Error("Invalid order anchor");
+    const receipt =
+      anchor.receipts.find(
+        (r) =>
+          r.command.playerId === record.playerId &&
+          r.command.requestId === request.requestId,
+      ) ?? null;
+    if (receipt) {
+      const originalBatch = batches.find(
+        (b) =>
+          b.command.type === "SubmitOrder" &&
+          b.command.order.playerId === record.playerId &&
+          b.command.order.requestId === request.requestId,
+      );
+      if (
+        !originalBatch ||
+        originalBatch.command.atMs !== Number(record.atMs) ||
+        originalBatch.events.at(-1)?.sequence !== Number(record.sequence) ||
+        !isDeepStrictEqual(
+          orderSubmitSchema.parse({
+            roundId: receipt.command.roundId,
+            requestId: receipt.command.requestId,
+            symbol: receipt.command.symbol,
+            side: receipt.command.side,
+            quantity: receipt.command.quantity,
+            protectionPriceCents: receipt.command.protectionPriceCents,
+          }),
+          request,
+        )
+      )
+        throw new Error("Order identity disagrees with history");
+    } else if (
+      Number(record.atMs) < round.closesAtMs ||
+      outcome.rejectionCode !== "MARKET_CLOSED"
+    )
+      throw new Error("Order has no committed receipt");
+    if (
+      !isDeepStrictEqual(
+        outcome,
+        orderOutcome(anchor, request, record.playerId, receipt),
+      )
+    )
+      throw new Error("Order result disagrees with history");
+    identities.add(`${record.playerId}:${request.requestId}`);
+  }
+  if (
+    state.receipts.some(
+      (r) => !identities.has(`${r.command.playerId}:${r.command.requestId}`),
+    )
+  )
+    throw new Error("Missing durable order");
   const projection = engineStateSchema.parse(row.projection);
   // Stored textual causes preserve both UUID opening and scheduled logical identities.
   const facts = (row.batches as { events: unknown[] }[]).flatMap(

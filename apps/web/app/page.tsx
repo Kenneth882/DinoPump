@@ -11,7 +11,8 @@ export default function Home() {
         trade in Dino Dollars when the exchange opens.
       </p>
       <p className="availability">
-        Ready your herd to open a round. Trading is coming next.
+        Ready your herd, then buy and sell protected trades against the game
+        liquidity bot.
       </p>
       <Lobby />
       <MarketBaseline />

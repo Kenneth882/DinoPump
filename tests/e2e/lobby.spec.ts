@@ -1,12 +1,45 @@
 import { expect, test } from "@playwright/test";
 
-test("two guests join, reconnect, ready and observe the same authoritative opening at 360px (AC-01/02/10/17 subset)", async ({
+test("two guests trade, reconcile lost delivery, observe news and reconnect at 360px (AC-03/04/06/10/17 subset)", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(120_000);
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext({
     viewport: { width: 360, height: 800 },
+  });
+  let loseNextTrade = false;
+  let blocked = false;
+  const submissions: unknown[] = [];
+  let originalResultPacket = "";
+  let replayOldResult = () => {};
+  await guestContext.routeWebSocket(/socket\.io/, (ws) => {
+    const server = ws.connectToServer();
+    replayOldResult = () => {
+      if (originalResultPacket) ws.send(originalResultPacket);
+    };
+    ws.onMessage((message) => {
+      const text = String(message);
+      if (text.includes('"order:submit"')) {
+        const payload = JSON.parse(text.slice(text.indexOf("[")))[1];
+        submissions.push(payload);
+        if (loseNextTrade) {
+          blocked = true;
+          loseNextTrade = false;
+        }
+      }
+      server.send(message);
+    });
+    server.onMessage((message) => {
+      if (String(message).includes('"order:result"') && !originalResultPacket)
+        originalResultPacket = String(message);
+      if (!blocked) ws.send(message);
+      else if (String(message).includes('"order:result"')) {
+        blocked = false;
+        ws.close();
+        server.close();
+      }
+    });
   });
   const host = await hostContext.newPage(),
     guest = await guestContext.newPage();
@@ -29,7 +62,9 @@ test("two guests join, reconnect, ready and observe the same authoritative openi
     await expect(host.getByText("Amber Guest", { exact: true })).toBeVisible();
     await expect(guest.getByText("Fern Host", { exact: true })).toBeVisible();
     await expect(
-      guest.getByText("Game liquidity bot", { exact: false }),
+      guest
+        .getByRole("region", { name: "Gather your herd" })
+        .getByText("Game liquidity bot", { exact: false }),
     ).toBeVisible();
     await expect(
       guest.getByText("Fictional market game. Virtual currency only."),
@@ -155,6 +190,83 @@ test("two guests join, reconnect, ready and observe the same authoritative openi
       path: testInfo.outputPath("opening-360.png"),
       fullPage: true,
     });
+    const ticket = guest.getByRole("region", { name: "Protected trade" });
+    await guest.getByLabel("Whole units").fill("150");
+    const bid = await read(guest);
+    const bestAsk = Math.min(
+      ...bid.quotes
+        .filter(
+          (q: { symbol: string; side: string }) =>
+            q.symbol === "FERN" && q.side === "ask",
+        )
+        .map((q: { priceCents: number }) => q.priceCents),
+    );
+    await guest.getByLabel("Maximum buy price (cents)").fill(String(bestAsk));
+    await ticket.getByRole("button", { name: "Submit buy" }).focus();
+    await guest.keyboard.press("Enter");
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "Partially filled",
+    );
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "100 units executed; 50 unfilled",
+    );
+    await expect(host.getByTestId("own-cash")).toHaveText("D$10,000.00");
+    await guest.getByLabel("Whole units").fill("1");
+    await guest.getByLabel("Maximum buy price (cents)").fill("100");
+    await ticket.getByRole("button", { name: "Submit buy" }).click();
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "No liquidity within protection",
+    );
+    await guest.getByLabel("Buy or sell").selectOption("sell");
+    await guest.getByLabel("Whole units").fill("101");
+    await ticket.getByRole("button", { name: "Submit sell" }).click();
+    await expect(guest.getByTestId("trade-result")).toContainText("Rejected");
+    await guest.getByLabel("Whole units").fill("100");
+    await ticket.getByRole("button", { name: "Submit sell" }).click();
+    await expect(guest.getByTestId("trade-result")).toContainText("Filled");
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "100 units executed; 0 unfilled",
+    );
+    const cashAfterSell = await guest.getByTestId("own-cash").innerText();
+    replayOldResult();
+    await expect(guest.getByTestId("own-cash")).toHaveText(cashAfterSell);
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "100 units executed; 0 unfilled",
+    );
+    await guest.getByLabel("Buy or sell").selectOption("buy");
+    await guest.getByLabel("Whole units").fill("1");
+    loseNextTrade = true;
+    await ticket.getByRole("button", { name: "Submit buy" }).click();
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "Pending reconciliation",
+    );
+    await expect(
+      ticket.getByRole("button", { name: "Submit buy" }),
+    ).toBeDisabled();
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "1 units executed; 0 unfilled",
+      { timeout: 15000 },
+    );
+    const traded = await read(guest);
+    expect(traded.portfolio.holdings.FERN).toBe(1);
+    const lostRequest = (submissions.at(-1) as { requestId: string }).requestId;
+    expect(
+      traded.recentOrders.filter(
+        (r: { requestId: string }) => r.requestId === lostRequest,
+      ),
+    ).toHaveLength(1);
+    expect(
+      traded.trades.filter(
+        (t: { sequence: number }) => t.sequence > bid.sequence,
+      ),
+    ).toHaveLength(3);
+    await guest.screenshot({
+      path: testInfo.outputPath("trading-360.png"),
+      fullPage: true,
+    });
     for (const page of [host, guest]) {
       await expect(
         page.getByRole("heading", { name: "The Daily Roar" }),
@@ -170,16 +282,22 @@ test("two guests join, reconnect, ready and observe the same authoritative openi
     });
     await expect(guest.getByTestId("news-item")).toHaveCount(1);
     const updated = await read(host);
-    expect(await read(guest)).toEqual(updated);
+    const guestUpdated = await read(guest);
+    expect(guestUpdated.assets).toEqual(updated.assets);
+    expect(guestUpdated.quotes).toEqual(updated.quotes);
+    expect(guestUpdated.news).toEqual(updated.news);
     expect(updated.sequence).toBeGreaterThan(opening.sequence);
     expect(updated.quotes).not.toEqual(opening.quotes);
     expect(updated.portfolio).toEqual(opening.portfolio);
     expect(
       updated.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
     ).toEqual(
-      opening.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
+      traded.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
     );
     expect(updated.news[0].narrationStatus).toBe("pending");
+    await expect(
+      ticket.getByRole("button", { name: "Submit buy" }),
+    ).toBeEnabled();
     await expect(guest.getByTestId("news-item")).toContainText(
       updated.news[0].headline,
     );

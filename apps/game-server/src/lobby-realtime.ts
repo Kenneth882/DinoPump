@@ -4,8 +4,10 @@ import {
   lobbySubscriptionSchema,
   lobbyResyncSchema,
   roundStartSchema,
+  tradingErrorMessages,
+  type OrderResult,
 } from "@dinopump/contracts";
-import { LobbyError } from "@dinopump/database";
+import { LobbyError, TradingError } from "@dinopump/database";
 import { safeError, sessionSecret, type LobbyOptions } from "./lobby-http.js";
 
 /** Serialize subscription, committed mutations and fresh snapshots in one owner. */
@@ -23,6 +25,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       code: string;
       playerId: string;
       sequence: number;
+      heartbeatAt?: number;
       roundId?: string | undefined;
       roundSequence?: number | undefined;
     }
@@ -47,36 +50,60 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     }
   }
   async function publish() {
-    for (const [socket, member] of members) {
-      try {
-        const snapshot = await options.store.snapshot(
-          member.secret,
-          member.code,
+    const recipients = [...members];
+    const deliveries = await options.store.publication(
+      recipients.map(([, member]) => member),
+    );
+    for (const [index, [socket, member]] of recipients.entries()) {
+      const delivery = deliveries[index]!;
+      if (delivery.error || !delivery.snapshot) {
+        socket.emit(
+          "command:error",
+          safeError(new LobbyError(delivery.error ?? "SERVICE_UNAVAILABLE")),
         );
+        socket.disconnect(true);
+        await remove(socket);
+        continue;
+      }
+      const snapshot = delivery.snapshot;
+      for (const batch of delivery.batches) {
+        socket.emit("market:batch", batch);
+        for (const news of batch.news) socket.emit("news:update", news);
+      }
+      if (snapshot.serverTime - (member.heartbeatAt ?? 0) >= 1000) {
+        socket.emit("room:heartbeat", {
+          serverTime: snapshot.serverTime,
+          roundId: snapshot.round?.roundId ?? null,
+          sequence: snapshot.round?.sequence ?? 0,
+        });
+        member.heartbeatAt = snapshot.serverTime;
+      }
+      member.roundId = snapshot.round?.roundId;
+      member.roundSequence = snapshot.round?.sequence;
+      if (snapshot.sequence !== member.sequence) {
+        socket.emit("room:snapshot", snapshot);
+        socket.emit("presence:update", snapshot);
+        member.sequence = snapshot.sequence;
+      }
+    }
+  }
+  async function deliverOrder(
+    playerId: string,
+    code: string,
+    result: OrderResult,
+  ) {
+    for (const [socket, member] of members) {
+      if (member.playerId !== playerId || member.code !== code) continue;
+      try {
         if (
-          snapshot.round &&
-          member.roundId === snapshot.round.roundId &&
-          member.roundSequence !== undefined &&
-          snapshot.round.sequence > member.roundSequence
-        ) {
-          const batches = await options.store.marketUpdates(
+          !(await options.store.authorizeOrderRecipient(
             member.secret,
             member.code,
-            member.roundId,
-            member.roundSequence,
-          );
-          for (const batch of batches) {
-            socket.emit("market:batch", batch);
-            for (const news of batch.news) socket.emit("news:update", news);
-          }
-        }
-        member.roundId = snapshot.round?.roundId;
-        member.roundSequence = snapshot.round?.sequence;
-        if (snapshot.sequence !== member.sequence) {
-          socket.emit("room:snapshot", snapshot);
-          socket.emit("presence:update", snapshot);
-          member.sequence = snapshot.sequence;
-        }
+            result.roundId,
+          ))
+        )
+          continue;
+        socket.emit("order:result", result);
       } catch (error) {
         socket.emit("command:error", safeError(error));
         socket.disconnect(true);
@@ -118,6 +145,38 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       socket.emit("command:error", body);
       if (typeof ack === "function") ack(body);
     }
+    socket.on("order:submit", (payload: unknown, ack: unknown) => {
+      void serial(async () => {
+        const member = members.get(socket);
+        if (!member) throw new LobbyError("FORBIDDEN");
+        const result = await options.store.submitOrder(
+          member.secret,
+          member.code,
+          payload,
+        );
+        await publish();
+        await deliverOrder(member.playerId, member.code, result);
+        if (typeof ack === "function") ack(result);
+      }).catch((error: unknown) => {
+        const code =
+          error instanceof TradingError || error instanceof LobbyError
+            ? error.code
+            : "SERVICE_UNAVAILABLE";
+        const requestId = roundStartSchema.passthrough().safeParse(payload);
+        const body = {
+          error: code,
+          message:
+            code in tradingErrorMessages
+              ? tradingErrorMessages[code as keyof typeof tradingErrorMessages]
+              : safeError(error).message,
+          ...(requestId.success
+            ? { requestId: requestId.data.requestId.toLowerCase() }
+            : {}),
+        };
+        socket.emit("command:error", body);
+        if (typeof ack === "function") ack(body);
+      });
+    });
     socket.on("round:start", (payload: unknown, ack: unknown) => {
       void execute(async () => {
         const member = members.get(socket);

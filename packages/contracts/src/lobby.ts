@@ -1,8 +1,14 @@
+import {
+  privatePortfolioSchema,
+  orderResultSchema,
+  tradingRulesSchema,
+  publicExecutionSchema,
+  publicTotalsSchema,
+} from "./trading.js";
 import { z } from "zod";
 import { newsItemSchema } from "./news.js";
 import { assetSymbolSchema } from "./baseline.js";
 import { botQuoteSchema } from "./bot-quotes.js";
-import { frozenRoundSchema } from "./round-baseline.js";
 
 export const avatarSchema = z.enum([
   "trex",
@@ -63,10 +69,13 @@ export const openedRoundViewSchema = z.strictObject({
     .length(4),
   quotes: z.array(botQuoteSchema).max(24),
   news: z.array(newsItemSchema),
-  portfolio: frozenRoundSchema.shape.initialState.shape.humans.element.omit({
-    playerId: true,
-    joinOrder: true,
-  }),
+  portfolio: privatePortfolioSchema,
+  portfolioSequence: z.number().int().positive(),
+  recentOrders: z.array(orderResultSchema).max(20),
+  tradingRules: tradingRulesSchema,
+  quoteUpdatedAtMs: z.number().int().nonnegative(),
+  trades: z.array(publicExecutionSchema),
+  totals: publicTotalsSchema,
 });
 export const lobbySnapshotSchema = z
   .object({
@@ -148,9 +157,18 @@ export const marketBatchSchema = z
     assets: openedRoundViewSchema.shape.assets,
     quotes: openedRoundViewSchema.shape.quotes,
     news: z.array(newsItemSchema),
+    quoteUpdatedAtMs: z.number().int().nonnegative(),
+    trades: z.array(publicExecutionSchema),
+    totals: publicTotalsSchema,
   })
   .refine(
     (batch) => batch.endSequence >= batch.startSequence,
     "Invalid batch range",
   );
 export type MarketBatch = z.infer<typeof marketBatchSchema>;
+/** Fresh authorized connection evidence; unchanged quotes have a separate age. */
+export const roomHeartbeatSchema = z.strictObject({
+  serverTime: z.number().int().nonnegative(),
+  roundId: z.uuid().nullable(),
+  sequence: z.number().int().nonnegative(),
+});
