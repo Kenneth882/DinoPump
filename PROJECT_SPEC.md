@@ -178,7 +178,7 @@ Rules version `1.1` specifies deterministic quote identity, replacement, and exa
 
 Before live rounds are implemented, show Pangaea Exchange, the four canonical assets and their initial prices in Dino Dollars, “Fictional market game. Virtual currency only.”, and “Live rounds are not available yet.” Fetch the validated baseline from the game service at runtime; production builds must not require a running service. Do not add gameplay or configuration controls.
 
-During the opening-only implementation stage, the availability notice reads “Ready your herd to open a round. Trading is coming next.” The introduction retains initial-price labels; the opening view shows authoritative starting resources and quotes without trading controls.
+During the scheduled-events implementation stage, the availability notice reads “Ready your herd to open a round. Trading is coming next.” The introduction retains initial-price labels; the round view shows authoritative resources, current quotes, reference and last-trade prices, and immediate authored Daily Roar news without trading controls.
 
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
@@ -331,6 +331,14 @@ All commands use runtime validation. The server derives player identity from the
 | Server → client | `command:error` | Stable error code, safe message, optional `requestId` |
 
 Every command receives an acknowledgement carrying its request ID and outcome. Public batches contain a complete sequence envelope even when some event details are private; private holdings/order details are delivered only to their owner. Leaderboard portfolio totals and executed trade activity are public within the room.
+
+### Scheduled-event delivery (ticket #9 stage)
+
+Opening snapshots include `round.news`, the ordered authored news for already-applied events. Each item has `sourceEventId`, `roundId`, `scheduledEventId`, source `sequence`, `dueAtMs`, `appliedAtMs`, `catalogEventId`, `facts`, `headline`, `commentary`, `iconId`, actual reference `effects` (`symbol`, `beforeCents`, `afterCents`, `changeBps`), and `narrationStatus: "pending"`. Pending narration leaves the authored copy immediately visible; worker publication is a later slice.
+
+`market:batch` carries `roundId`, `startSequence`, `endSequence`, `serverTime`, complete public `assets` and `quotes` at that batch's end, and its applied `news`. Public assets contain symbol, reference price, and last-trade price only. The service emits a complete committed batch followed by `news:update` for each source item. Clients apply market and template news together, deduplicate by source ID, and request a snapshot on a sequence gap or round change. Room snapshot sequence and round market sequence remain distinct. No future schedule, job input, engine ledger, or other player's holdings appears in these payloads.
+
+The existing `room:resync { code, requestId }` acknowledgement remains supported during this stage. Full pending-order reconciliation and the round-based resync command are implemented in the later client-recovery ticket.
 
 ### Recovery behavior
 

@@ -18,7 +18,14 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
   });
   const members = new Map<
     Socket,
-    { secret: string; code: string; playerId: string; sequence: number }
+    {
+      secret: string;
+      code: string;
+      playerId: string;
+      sequence: number;
+      roundId?: string | undefined;
+      roundSequence?: number | undefined;
+    }
   >();
   let tail: Promise<unknown> = Promise.resolve();
   function serial<T>(work: () => Promise<T>) {
@@ -46,6 +53,25 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
           member.secret,
           member.code,
         );
+        if (
+          snapshot.round &&
+          member.roundId === snapshot.round.roundId &&
+          member.roundSequence !== undefined &&
+          snapshot.round.sequence > member.roundSequence
+        ) {
+          const batches = await options.store.marketUpdates(
+            member.secret,
+            member.code,
+            member.roundId,
+            member.roundSequence,
+          );
+          for (const batch of batches) {
+            socket.emit("market:batch", batch);
+            for (const news of batch.news) socket.emit("news:update", news);
+          }
+        }
+        member.roundId = snapshot.round?.roundId;
+        member.roundSequence = snapshot.round?.sequence;
         if (snapshot.sequence !== member.sequence) {
           socket.emit("room:snapshot", snapshot);
           socket.emit("presence:update", snapshot);
@@ -146,6 +172,9 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
           member.secret,
           member.code,
         );
+        member.sequence = snapshot.sequence;
+        member.roundId = snapshot.round?.roundId;
+        member.roundSequence = snapshot.round?.sequence;
         socket.emit("room:snapshot", snapshot);
         if (typeof ack === "function")
           ack({ requestId: parsed.data.requestId, snapshot });
@@ -160,11 +189,22 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       });
     });
   });
+  let ticking = false;
   const timer = setInterval(() => {
-    void execute(() => options.store.processDue()).catch(() => {
-      io.disconnectSockets(true);
-    });
-  }, 1000);
+    if (ticking) return;
+    ticking = true;
+    void execute(async () => {
+      const applied = await options.store.processDue();
+      for (const event of applied)
+        console.info(JSON.stringify({ event: "scheduler.applied", ...event }));
+    })
+      .catch(() => {
+        io.disconnectSockets(true);
+      })
+      .finally(() => {
+        ticking = false;
+      });
+  }, 250);
   timer.unref();
   // Close upgraded connections before waiting for the HTTP listener to close.
   const close = server.close.bind(server);

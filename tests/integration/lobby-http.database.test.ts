@@ -1,7 +1,7 @@
 import { io as socketClient, type Socket } from "socket.io-client";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { isolatedDatabase } from "../helpers/database.js";
 import { migrate, LobbyStore } from "../../packages/database/dist/index.js";
 import { createGameServer } from "../../apps/game-server/src/server.js";
@@ -12,12 +12,21 @@ let server: ReturnType<typeof createGameServer>;
 let origin: string;
 const sockets: Socket[] = [];
 let now = 1_800_000_000_000;
+let runningSince: number | null = null;
 const webOrigin = "http://127.0.0.1:3000";
 beforeEach(async () => {
   now = 1_800_000_000_000;
+  runningSince = null;
   database = await isolatedDatabase();
   await migrate(database.pool);
-  store = await LobbyStore.open(database.pool, () => now);
+  store = await LobbyStore.open(
+    database.pool,
+    () =>
+      now +
+      (runningSince === null
+        ? 0
+        : Math.floor(performance.now() - runningSince)),
+  );
   server = createGameServer(undefined, {
     store,
     webOrigin,
@@ -384,4 +393,97 @@ it("serializes subscription with a competing join and never publishes a rolled-b
       snapshot.players.every((player) => player.displayName !== "Failed"),
     ),
   ).toBe(true);
+});
+
+it("publishes complete public event batches and immediate news to both guests (AC-09/10/13)", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const { code } = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${code}/join`, {}, guest);
+  const first = await connectGuest(host, code),
+    second = await connectGuest(guest, code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await expect
+    .poll(async () => (await store.snapshot(host.slice(13), code)).status)
+    .toBe("OPEN");
+  // Ensure both subscribers have received the complete opening before the event.
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:resync", { code, requestId: randomUUID() });
+  const batches: unknown[][] = [[], []],
+    news: unknown[][] = [[], []];
+  [first, second].forEach((socket, index) => {
+    socket.on("market:batch", (batch) => batches[index]!.push(batch));
+    socket.on("news:update", (item) => news[index]!.push(item));
+  });
+  now += 60000;
+  await expect.poll(() => batches[0]!.length).toBe(1);
+  await expect.poll(() => batches[1]!.length).toBe(1);
+  expect(batches[1]).toEqual(batches[0]);
+  expect(batches[0]![0]).toMatchObject({
+    startSequence: 4,
+    endSequence: 6,
+    news: [{ narrationStatus: "pending" }],
+  });
+  expect(news[0]).toHaveLength(1);
+  expect(news[1]).toEqual(news[0]);
+  expect(JSON.stringify(batches)).not.toMatch(
+    /secret|holdings|cashCents|catalogEvent"|initialState|receipts/,
+  );
+  const synced = await second
+    .timeout(2000)
+    .emitWithAck("room:resync", { code, requestId: randomUUID() });
+  expect(synced.snapshot.round.news).toEqual(news[0]);
+  expect(synced.snapshot.round.sequence).toBe(6);
+});
+
+it("keeps scheduling without sockets and records healthy due-to-commit lag below one second", async () => {
+  const host = await store.createSession({
+    displayName: "Host",
+    avatar: "trex",
+  });
+  const guest = await store.createSession({
+    displayName: "Guest",
+    avatar: "trex",
+  });
+  const { code } = await store.createRoom(host.secret);
+  await store.join(guest.secret, code);
+  for (const player of [host, guest]) {
+    await store.connect(player.secret, code);
+    await store.ready(player.secret, code, {
+      ready: true,
+      requestId: randomUUID(),
+    });
+  }
+  await store.start(host.secret, code, { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await store.disconnect(host.player.playerId, code);
+  await store.disconnect(guest.player.playerId, code);
+  const log = vi.spyOn(console, "info").mockImplementation(() => {});
+  try {
+    now += 59500;
+    runningSince = performance.now();
+    await expect.poll(() => log.mock.calls.length).toBe(1);
+    const entry = JSON.parse(String(log.mock.calls[0]![0]));
+    expect(entry).toMatchObject({
+      event: "scheduler.applied",
+      dueAtMs: 1800000065000,
+    });
+    expect(entry.lagMs).toBeGreaterThanOrEqual(0);
+    expect(entry.lagMs).toBeLessThanOrEqual(1000);
+    expect((await store.snapshot(host.secret, code)).round?.news).toHaveLength(
+      1,
+    );
+  } finally {
+    log.mockRestore();
+  }
 });

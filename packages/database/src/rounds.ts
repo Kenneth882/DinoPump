@@ -58,7 +58,7 @@ export async function insertRoundBaseline(
   }
   await client.query(
     `INSERT INTO game_events (round_id, sequence, event_id, schema_version, type, payload, cause_id, occurred_at_ms)
-     VALUES ($1, 1, $1, 1, 'RoundInitialized', $2, $1, $3)`,
+     VALUES ($1::uuid, 1, $1::uuid, 1, 'RoundInitialized', $2, $1::text, $3)`,
     [input.roundId, baseline, input.createdAtMs],
   );
   await client.query(

@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("two guests join, reconnect, ready and observe the same authoritative opening at 360px (AC-01/02/10/17 subset)", async ({
   browser,
 }, testInfo) => {
+  test.setTimeout(120_000);
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext({
     viewport: { width: 360, height: 800 },
@@ -114,7 +115,7 @@ test("two guests join, reconnect, ready and observe the same authoritative openi
     );
     for (const page of [host, guest]) {
       await expect(
-        page.getByRole("heading", { name: "Opening resources" }),
+        page.getByRole("heading", { name: "Market and your resources" }),
       ).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId("own-cash")).toHaveText("D$10,000.00");
       await expect(page.getByTestId("round-remaining")).toContainText(
@@ -152,6 +153,53 @@ test("two guests join, reconnect, ready and observe the same authoritative openi
     ).toBe(true);
     await guest.screenshot({
       path: testInfo.outputPath("opening-360.png"),
+      fullPage: true,
+    });
+    for (const page of [host, guest]) {
+      await expect(
+        page.getByRole("heading", { name: "The Daily Roar" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          "No news yet. The first market event arrives one minute into the round.",
+        ),
+      ).toBeVisible();
+    }
+    await expect(host.getByTestId("news-item")).toHaveCount(1, {
+      timeout: 70_000,
+    });
+    await expect(guest.getByTestId("news-item")).toHaveCount(1);
+    const updated = await read(host);
+    expect(await read(guest)).toEqual(updated);
+    expect(updated.sequence).toBeGreaterThan(opening.sequence);
+    expect(updated.quotes).not.toEqual(opening.quotes);
+    expect(updated.portfolio).toEqual(opening.portfolio);
+    expect(
+      updated.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
+    ).toEqual(
+      opening.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
+    );
+    expect(updated.news[0].narrationStatus).toBe("pending");
+    await expect(guest.getByTestId("news-item")).toContainText(
+      updated.news[0].headline,
+    );
+    await guestContext.setOffline(true);
+    await expect(
+      guest.getByRole("status").filter({ hasText: "Reconnecting" }),
+    ).toBeVisible();
+    await guestContext.setOffline(false);
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(guest.getByTestId("news-item")).toHaveCount(1);
+    expect((await read(guest)).news).toEqual(updated.news);
+    expect(
+      await guest.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await guest.screenshot({
+      path: testInfo.outputPath("news-360.png"),
       fullPage: true,
     });
   } finally {

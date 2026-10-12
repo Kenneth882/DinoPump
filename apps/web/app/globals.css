@@ -220,3 +220,20 @@ button:disabled {
     width: 100%;
   }
 }
+.daily-roar {
+  margin-top: 1.5rem;
+  overflow-wrap: anywhere;
+}
+.daily-roar > ol {
+  padding: 0;
+  list-style: none;
+}
+.daily-roar article {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #52653c;
+  border-radius: 0.5rem;
+}
+.daily-roar time {
+  font-variant-numeric: tabular-nums;
+}
