@@ -1,12 +1,23 @@
+import { isDeepStrictEqual } from "node:util";
+import { readOrder, persistOrder, readRecentOrders } from "./orders.js";
+import { processEngineCommand } from "@dinopump/engine";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { publicMarketView } from "./market-view.js";
 import { readMarketUpdates } from "./market-updates.js";
 import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
-import { persistRoundOpening, readOpenedRound } from "./opened-round.js";
+import {
+  persistRoundOpening,
+  persistEngineBatch,
+  readOpenedRound,
+} from "./opened-round.js";
 import {
   guestRequestSchema,
+  orderSubmitSchema,
+  type TradingErrorCode,
+  type LobbySnapshot,
+  type MarketBatch,
   newsItemSchema,
   gameplayRulesSchema,
   type Baseline,
@@ -29,6 +40,11 @@ export class LobbyError extends Error {
     super(code);
   }
 }
+export class TradingError extends Error {
+  constructor(readonly code: TradingErrorCode) {
+    super(code);
+  }
+}
 const hashSecret = (secret: string) =>
   createHash("sha256").update(secret).digest("hex");
 
@@ -36,6 +52,8 @@ const hashSecret = (secret: string) =>
 export class LobbyStore {
   private tail: Promise<unknown> = Promise.resolve();
   private available = true;
+  private engineCache = new Map<string, EngineState>();
+  private transactionCache = new Map<string, EngineState>();
   private constructor(
     private client: PoolClient,
     private clock: () => number,
@@ -44,6 +62,7 @@ export class LobbyStore {
   ) {
     client.on("error", () => {
       this.available = false;
+      this.engineCache.clear();
     });
   }
   static async open(
@@ -100,11 +119,15 @@ export class LobbyStore {
       try {
         await this.client.query("BEGIN");
         await this.assertOwnership();
+        this.transactionCache = new Map(this.engineCache);
         const value = await work(this.client, this.clock());
         await this.assertOwnership();
         await this.client.query("COMMIT");
+        this.engineCache = this.transactionCache;
         return value;
       } catch (error) {
+        this.engineCache.clear();
+        this.transactionCache.clear();
         await this.client.query("ROLLBACK").catch(() => {
           this.available = false;
         });
@@ -113,6 +136,28 @@ export class LobbyStore {
     });
     this.tail = result.catch(() => {});
     return result;
+  }
+  /** Only committed, verified states enter the cache. Compare replaceable projection on every read. */
+  private async readState(client: PoolClient, roundId: string) {
+    const cached = this.transactionCache.get(roundId);
+    if (cached) {
+      const row = (
+        await client.query(
+          "SELECT sequence,state FROM round_projections WHERE round_id=$1",
+          [roundId],
+        )
+      ).rows[0];
+      if (
+        !row ||
+        Number(row.sequence) !== cached.sequence ||
+        !isDeepStrictEqual(row.state, cached)
+      )
+        throw new Error("Cached projection disagrees with committed state");
+      return cached;
+    }
+    const verified = await readOpenedRound(client, roundId);
+    if (verified) this.transactionCache.set(roundId, verified);
+    return verified;
   }
   private async assertOwnership() {
     const owned = await this.client.query<{ owned: boolean }>(`SELECT EXISTS(
@@ -150,9 +195,123 @@ export class LobbyStore {
     if (this.closed) return;
     this.closed = true;
     this.available = false;
+    this.engineCache.clear();
+    this.orderBudgets.clear();
     this.client.release(true);
   }
   private closed = false;
+  private orderBudgets = new Map<string, { tokens: number; at: number }>();
+  private rejectionCounts: Record<string, number> = {};
+  private lastRejectionLog = 0;
+  private transportRejection(code: "INVALID_REQUEST" | "RATE_LIMITED") {
+    this.rejectionCounts[code] = (this.rejectionCounts[code] ?? 0) + 1;
+    const at = this.clock();
+    if (at - this.lastRejectionLog >= 30_000) {
+      console.info(
+        JSON.stringify({
+          event: "orders.transport_rejected",
+          counts: this.rejectionCounts,
+        }),
+      );
+      this.rejectionCounts = {};
+      this.lastRejectionLog = at;
+    }
+    return new TradingError(code);
+  }
+  private consumeOrderToken(playerId: string, now: number) {
+    for (const [id, budget] of this.orderBudgets)
+      if (now - budget.at > 60_000) this.orderBudgets.delete(id);
+    const previous = this.orderBudgets.get(playerId) ?? {
+      tokens: 10_000,
+      at: now,
+    };
+    const tokens = Math.min(
+      10_000,
+      previous.tokens + Math.max(0, now - previous.at) * 5,
+    );
+    this.orderBudgets.set(playerId, {
+      tokens: tokens >= 1000 ? tokens - 1000 : tokens,
+      at: Math.max(now, previous.at),
+    });
+    if (tokens < 1000) throw this.transportRejection("RATE_LIMITED");
+  }
+  submitOrder(secret: string, code: string, input: unknown) {
+    const parsed = orderSubmitSchema.safeParse(input);
+    if (!parsed.success)
+      return Promise.reject(this.transportRejection("INVALID_REQUEST"));
+    const request = parsed.data;
+    return this.run(async (client, now) => {
+      const player = await this.member(client, secret, code, now);
+      const room = (
+        await client.query(
+          "SELECT current_round_id,status FROM rooms WHERE code=$1",
+          [code],
+        )
+      ).rows[0];
+      if (room.current_round_id !== request.roundId)
+        throw new TradingError("ROUND_MISMATCH");
+      const baseline = (
+        await client.query("SELECT baseline FROM rounds WHERE round_id=$1", [
+          request.roundId,
+        ])
+      ).rows[0]?.baseline;
+      if (
+        !baseline?.initialState.humans.some(
+          (participant: { playerId: string }) =>
+            participant.playerId === player.playerId,
+        )
+      )
+        throw new TradingError("PLAYER_NOT_IN_ROUND");
+      this.consumeOrderToken(player.playerId, now);
+      const previous = await readOrder(client, request, player.playerId);
+      if (previous) {
+        if (!previous.matches) throw new TradingError("IDEMPOTENCY_CONFLICT");
+        return previous.outcome;
+      }
+      const { state } = await this.catchUpRound(client, request.roundId, now);
+      let resultState = state;
+      let receipt = null;
+      let batch = null;
+      if (now < state.round.closesAtMs) {
+        const result = processEngineCommand(state, {
+          type: "SubmitOrder",
+          atMs: now,
+          order: { ...request, playerId: player.playerId },
+        });
+        if (!result.ok || !result.receipt || !result.batch)
+          throw new Error("Unsafe order processing");
+        // Integrity/overflow failures are never disguised as player rejections.
+        if (
+          !result.receipt.result.ok &&
+          ![
+            "INVALID_ORDER",
+            "INSUFFICIENT_CASH",
+            "INSUFFICIENT_HOLDINGS",
+            "MARKET_CLOSED",
+          ].includes(result.receipt.result.code)
+        )
+          throw new Error("Unsafe settlement");
+        resultState = result.state;
+        receipt = result.receipt;
+        batch = result.batch;
+        await persistEngineBatch(client, resultState, batch);
+      }
+      this.transactionCache.set(request.roundId, resultState);
+      const outcome = await persistOrder(
+        client,
+        resultState,
+        request,
+        player.playerId,
+        receipt,
+        batch,
+        now,
+      );
+      await client.query("UPDATE rooms SET sequence=sequence+1 WHERE code=$1", [
+        code,
+      ]);
+      return outcome;
+    });
+  }
   createSession(input: unknown) {
     const parsed = guestRequestSchema.safeParse(input);
     if (!parsed.success)
@@ -231,8 +390,32 @@ export class LobbyStore {
       ? roundInitializationSchema.parse(countdownRow.rows[0].initialization)
       : null;
     const engine = room.current_round_id
-      ? await readOpenedRound(client, room.current_round_id)
+      ? await this.readState(client, room.current_round_id)
       : null;
+    const publicRows = engine
+      ? (
+          await client.query(
+            "SELECT public_view FROM round_batches WHERE round_id=$1 AND jsonb_array_length(public_view->'trades')>0 ORDER BY end_sequence DESC LIMIT 30",
+            [engine.round.roundId],
+          )
+        ).rows
+      : [];
+    const latestRow = engine
+      ? (
+          await client.query(
+            "SELECT public_view FROM round_batches WHERE round_id=$1 ORDER BY end_sequence DESC LIMIT 1",
+            [engine.round.roundId],
+          )
+        ).rows[0]
+      : null;
+    const latestView =
+      latestRow?.public_view ?? (engine ? publicMarketView(engine) : null);
+    const quoteUpdatedAtMs =
+      latestRow?.public_view?.quoteUpdatedAtMs ?? engine?.lastCommandAtMs;
+    const recentOrders =
+      engine && playerId
+        ? await readRecentOrders(client, engine.round.roundId, playerId)
+        : [];
     const human = engine?.trading.humans.find(
       (human) => human.playerId === playerId,
     );
@@ -263,7 +446,20 @@ export class LobbyStore {
               sequence: engine.sequence,
               opensAt: engine.round.opensAtMs,
               closesAt: engine.round.closesAtMs,
-              ...publicMarketView(engine),
+              ...latestView,
+              quoteUpdatedAtMs,
+              trades: publicRows
+                .reverse()
+                .flatMap((row) => row.public_view?.trades ?? [])
+                .slice(-30),
+              totals: publicMarketView(engine).totals,
+              tradingRules: {
+                rulesVersion: engine.round.rulesVersion,
+                prices: engine.round.config.rules.prices,
+                orders: engine.round.config.rules.orders,
+              },
+              portfolioSequence: engine.sequence,
+              recentOrders,
               news: (
                 await client.query(
                   "SELECT item FROM news_items WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
@@ -586,9 +782,10 @@ export class LobbyStore {
       [roundId],
     );
     if (!room.rowCount) throw new LobbyError("INVALID_ROOM_STATE");
-    const initial = await readOpenedRound(client, roundId);
+    const initial = await this.readState(client, roundId);
     if (!initial) throw new Error("Missing active round");
     const state = await applyDueEvents(client, initial, now);
+    this.transactionCache.set(roundId, state);
     const applied = initial.round.schedule
       .slice(initial.nextScheduledEvent, state.nextScheduledEvent)
       .map((event) => ({
@@ -614,9 +811,116 @@ export class LobbyStore {
       const snapshot = await this.visible(client, code, now, player.playerId);
       if (snapshot.round?.roundId !== roundId)
         throw new LobbyError("INVALID_REQUEST");
-      const state = await readOpenedRound(client, roundId);
+      const state = await this.readState(client, roundId);
       if (!state) throw new Error("Missing active round");
       return readMarketUpdates(client, state, afterSequence, now);
+    });
+  }
+
+  /** Coherent publication read: authorize every recipient, share verified public work. */
+  publication(
+    recipients: {
+      secret: string;
+      code: string;
+      roundId?: string | undefined;
+      roundSequence?: number | undefined;
+    }[],
+  ) {
+    return this.run(async (client, now) => {
+      const shared = new Map<string, LobbySnapshot>();
+      const updates = new Map<string, MarketBatch[]>();
+      const deliveries: {
+        snapshot: LobbySnapshot | null;
+        batches: MarketBatch[];
+        error: LobbyErrorCode | null;
+      }[] = [];
+      for (const recipient of recipients) {
+        try {
+          const player = await this.member(
+            client,
+            recipient.secret,
+            recipient.code,
+            now,
+          );
+          let snapshot = shared.get(recipient.code);
+          if (!snapshot) {
+            snapshot = await this.visible(
+              client,
+              recipient.code,
+              now,
+              player.playerId,
+            );
+            shared.set(recipient.code, snapshot);
+          } else if (snapshot.round) {
+            const state = this.transactionCache.get(snapshot.round.roundId);
+            const human = state?.trading.humans.find(
+              (h) => h.playerId === player.playerId,
+            );
+            if (!human) throw new LobbyError("FORBIDDEN");
+            const recentOrders = await readRecentOrders(
+              client,
+              snapshot.round.roundId,
+              player.playerId,
+            );
+            snapshot = {
+              ...snapshot,
+              round: {
+                ...snapshot.round,
+                recentOrders,
+                portfolio: {
+                  cashCents: human.cashCents,
+                  holdings: human.holdings,
+                },
+              },
+            };
+          }
+          let batches: MarketBatch[] = [];
+          if (
+            snapshot.round &&
+            recipient.roundId === snapshot.round.roundId &&
+            recipient.roundSequence !== undefined &&
+            recipient.roundSequence < snapshot.round.sequence
+          ) {
+            const key = `${recipient.roundId}:${recipient.roundSequence}`;
+            const existing = updates.get(key);
+            if (existing) batches = existing;
+            else {
+              const state = this.transactionCache.get(snapshot.round.roundId);
+              if (!state) throw new Error("Missing publication state");
+              batches = await readMarketUpdates(
+                client,
+                state,
+                recipient.roundSequence,
+                now,
+              );
+              updates.set(key, batches);
+            }
+          }
+          deliveries.push({ snapshot, batches, error: null });
+        } catch (error) {
+          if (
+            !(error instanceof LobbyError) ||
+            !["UNAUTHENTICATED", "FORBIDDEN", "ROOM_NOT_FOUND"].includes(
+              error.code,
+            )
+          )
+            throw error;
+          deliveries.push({ snapshot: null, batches: [], error: error.code });
+        }
+      }
+      return deliveries;
+    });
+  }
+
+  authorizeOrderRecipient(secret: string, code: string, roundId: string) {
+    return this.run(async (client, now) => {
+      await this.member(client, secret, code, now);
+      const row = (
+        await client.query("SELECT current_round_id FROM rooms WHERE code=$1", [
+          code,
+        ])
+      ).rows[0];
+      return row.current_round_id === roundId;
     });
   }
 
@@ -635,6 +939,7 @@ export class LobbyStore {
         const input = roundInitializationSchema.parse(initialization);
         if (now < input.opensAtMs) continue;
         const state = await persistRoundOpening(client, input);
+        this.transactionCache.set(state.round.roundId, state);
         await client.query(
           "UPDATE rooms SET status='OPEN',current_round_id=$2,sequence=sequence+1,host_transfer_at=NULL,expires_at=NULL WHERE code=$1",
           [code, state.round.roundId],

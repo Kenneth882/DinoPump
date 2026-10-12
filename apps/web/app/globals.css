@@ -237,3 +237,24 @@ button:disabled {
 .daily-roar time {
   font-variant-numeric: tabular-nums;
 }
+.trade-ticket {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid #f2cb7a;
+  border-radius: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.trade-ticket form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.trade-ticket form p,
+.trade-ticket form button {
+  grid-column: 1 / -1;
+}
+@media (max-width: 540px) {
+  .trade-ticket form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

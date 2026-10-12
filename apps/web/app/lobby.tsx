@@ -7,9 +7,15 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { TradeTicket } from "./trade-ticket";
 import { io } from "socket.io-client";
 import {
   guestRequestSchema,
+  orderResultSchema,
+  tradingCommandErrorSchema,
+  roomHeartbeatSchema,
+  type OrderSubmit,
+  type OrderResult,
   lobbyErrorMessages,
   lobbyErrorSchema,
   lobbyCommandErrorSchema,
@@ -69,6 +75,14 @@ export function Lobby() {
   const [recovering, setRecovering] = useState(true);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [commandPending, setCommandPending] = useState(false);
+  const [tradePending, setTradePending] = useState(false);
+  const [tradeResult, setTradeResult] = useState<OrderResult | null>(null);
+  const [tradeMessage, setTradeMessage] = useState("");
+  const trade = useRef<{
+    payload: OrderSubmit;
+    sending: boolean;
+    retryAt: number;
+  } | null>(null);
   const command = useRef<{
     event: "room:ready" | "round:start";
     payload: { requestId: string; ready?: boolean };
@@ -85,6 +99,10 @@ export function Lobby() {
     setActiveCode("");
     setSnapshot(null);
     command.current = null;
+    trade.current = null;
+    setTradePending(false);
+    setTradeResult(null);
+    setTradeMessage("");
     setCommandPending(false);
   }, []);
 
@@ -139,6 +157,7 @@ export function Lobby() {
     let synchronized = false;
     let visible: LobbySnapshot | null = null;
     let resyncPending = false;
+    let freshAt = performance.now();
     function requestSnapshot() {
       synchronized = false;
       setConnection("Synchronizing…");
@@ -182,7 +201,142 @@ export function Lobby() {
       setConnection("Reconnecting…");
       if (error.data) report(error.data);
     });
-    socket.on("command:error", report);
+    socket.on("command:error", (data: unknown) => {
+      const error = tradingCommandErrorSchema.safeParse(data);
+      if (
+        error.success &&
+        error.data.requestId === trade.current?.payload.requestId
+      ) {
+        receiveTradeError(error.data);
+      } else report(data);
+    });
+    function receiveTradeError(error: {
+      error: string;
+      message: string;
+      requestId?: string | undefined;
+    }) {
+      if (error.requestId !== trade.current?.payload.requestId) return;
+      if (["RATE_LIMITED", "SERVICE_UNAVAILABLE"].includes(error.error)) {
+        trade.current!.sending = false;
+        trade.current!.retryAt = Date.now() + 1000;
+        setTradeMessage(error.message);
+        if (error.error === "SERVICE_UNAVAILABLE") requestSnapshot();
+      } else {
+        trade.current = null;
+        setTradePending(false);
+        setTradeMessage(error.message);
+        if (error.error === "UNAUTHENTICATED") {
+          setPlayer(null);
+          clearLobby();
+        }
+      }
+    }
+    function receiveOrder(raw: unknown) {
+      const parsed = orderResultSchema.safeParse(raw);
+      if (
+        !parsed.success ||
+        !visible?.round ||
+        parsed.data.roundId !== visible.round.roundId
+      ) {
+        requestSnapshot();
+        return;
+      }
+      const result = parsed.data,
+        current = trade.current;
+      if (current && result.requestId === current.payload.requestId) {
+        const request = current.payload;
+        if (
+          result.quantity !== request.quantity ||
+          result.side !== request.side ||
+          result.symbol !== request.symbol ||
+          result.protectionPriceCents !== request.protectionPriceCents ||
+          result.roundId !== request.roundId
+        ) {
+          requestSnapshot();
+          return;
+        }
+        trade.current = null;
+        setTradePending(false);
+        setTradeMessage("");
+        setTradeResult(result);
+      } else if (!current) {
+        setTradeResult((previous) =>
+          !previous ||
+          previous.roundId !== result.roundId ||
+          result.sequence >= previous.sequence
+            ? result
+            : previous,
+        );
+      }
+      // A retried original receipt is evidence of that order, never a newer ledger.
+      if (result.sequence > visible.round.portfolioSequence) {
+        visible = {
+          ...visible,
+          round: {
+            ...visible.round,
+            portfolio: result.portfolio,
+            portfolioSequence: result.sequence,
+          },
+        };
+        setSnapshot(visible);
+      }
+      if (result.sequence > (visible.round?.sequence ?? 0)) requestSnapshot();
+    }
+    socket.on("order:result", receiveOrder);
+    function sendTrade() {
+      const current = trade.current;
+      if (
+        !socket.connected ||
+        !synchronized ||
+        !current ||
+        current.sending ||
+        Date.now() < current.retryAt
+      )
+        return;
+      current.sending = true;
+      void socket
+        .timeout(2500)
+        .emitWithAck("order:submit", current.payload)
+        .then((raw: unknown) => {
+          if (!active || trade.current !== current) return;
+          const success = orderResultSchema.safeParse(raw),
+            failure = tradingCommandErrorSchema.safeParse(raw);
+          if (
+            success.success &&
+            success.data.requestId === current.payload.requestId
+          )
+            receiveOrder(success.data);
+          else if (
+            failure.success &&
+            failure.data.requestId === current.payload.requestId
+          )
+            receiveTradeError(failure.data);
+          else throw new Error("Invalid order acknowledgement");
+        })
+        .catch(() => {
+          if (!active || trade.current !== current) return;
+          current.sending = false;
+          current.retryAt = Date.now() + 1000;
+          requestSnapshot();
+        });
+    }
+    socket.on("room:heartbeat", (raw: unknown) => {
+      const parsed = roomHeartbeatSchema.safeParse(raw);
+      if (!parsed.success) return;
+      freshAt = performance.now();
+      if (
+        parsed.data.roundId !== (visible?.round?.roundId ?? null) ||
+        parsed.data.sequence > (visible?.round?.sequence ?? 0)
+      ) {
+        requestSnapshot();
+        return;
+      }
+      setServerClock({
+        at: parsed.data.serverTime,
+        received: performance.now(),
+      });
+      setElapsed(0);
+    });
     function sendPending() {
       const current = command.current;
       if (
@@ -234,7 +388,20 @@ export function Lobby() {
               (parsed.data.round?.sequence ?? 0)))
       )
         return;
+      const portfolio =
+        visible?.round?.roundId === parsed.data.round?.roundId &&
+        visible?.round &&
+        parsed.data.round &&
+        visible.round.portfolioSequence > parsed.data.round.portfolioSequence
+          ? {
+              portfolio: visible.round.portfolio,
+              portfolioSequence: visible.round.portfolioSequence,
+            }
+          : null;
       visible = parsed.data;
+      if (portfolio && visible.round)
+        visible = { ...visible, round: { ...visible.round, ...portfolio } };
+      freshAt = performance.now();
       setSnapshot(visible);
       setServerClock({
         at: parsed.data.serverTime,
@@ -244,7 +411,12 @@ export function Lobby() {
       synchronized = true;
       setConnection("Connected");
       setError("");
+      const recovered = visible.round?.recentOrders.find(
+        (result) => result.requestId === trade.current?.payload.requestId,
+      );
+      if (recovered) receiveOrder(recovered);
       sendPending();
+      sendTrade();
     });
     socket.on("market:batch", (data: unknown) => {
       const parsed = marketBatchSchema.safeParse(data);
@@ -274,9 +446,13 @@ export function Lobby() {
           sequence: batch.endSequence,
           assets: batch.assets,
           quotes: batch.quotes,
+          quoteUpdatedAtMs: batch.quoteUpdatedAtMs,
+          totals: batch.totals,
+          trades: [...visible.round.trades, ...batch.trades].slice(-30),
           news: [...news.values()].sort((a, b) => a.sequence - b.sequence),
         },
       };
+      freshAt = performance.now();
       setSnapshot(visible);
       setServerClock({ at: batch.serverTime, received: performance.now() });
       setElapsed(0);
@@ -297,14 +473,18 @@ export function Lobby() {
       if (!socket.connected && !socket.active) socket.connect();
     }, 5000);
     const retry = setInterval(() => {
+      if (socket.connected && performance.now() - freshAt > 3000)
+        requestSnapshot();
       if (socket.connected && !synchronized) requestSnapshot();
       sendPending();
+      sendTrade();
     }, 500);
     return () => {
       active = false;
       clearInterval(reconnect);
       clearInterval(retry);
       if (command.current) command.current.sending = false;
+      if (trade.current) trade.current.sending = false;
       socket.disconnect();
     };
   }, [activeCode, clearLobby]);
@@ -557,8 +737,65 @@ export function Lobby() {
               </p>
               <p>
                 Events move reference prices and executable quotes. Last-trade
-                prices change only after a trade. Trading is coming next.
+                prices change only after a trade. Orders use fixed protection
+                against the game liquidity bot.
               </p>
+              <TradeTicket
+                round={snapshot.round}
+                serverNow={serverNow}
+                enabled={
+                  connection === "Connected" &&
+                  serverNow >= snapshot.round.opensAt &&
+                  serverNow < snapshot.round.closesAt
+                }
+                pending={tradePending}
+                result={tradeResult}
+                message={tradeMessage}
+                onSubmit={(payload) => {
+                  if (
+                    trade.current ||
+                    connection !== "Connected" ||
+                    serverNow >= snapshot.round!.closesAt
+                  )
+                    return;
+                  trade.current = {
+                    payload: Object.freeze({ ...payload }),
+                    sending: false,
+                    retryAt: 0,
+                  };
+                  setTradePending(true);
+                  setTradeMessage("");
+                }}
+              />
+              <section aria-labelledby="activity-heading">
+                <h3 id="activity-heading">
+                  Public executions and portfolio totals
+                </h3>
+                {snapshot.round.trades.length ? (
+                  <ul aria-label="Executed trades">
+                    {snapshot.round.trades.map((t) => (
+                      <li key={t.sequence}>
+                        {t.symbol}: {t.quantity} units at D$
+                        {(t.priceCents / 100).toFixed(2)} · game liquidity bot
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No trades yet.</p>
+                )}
+                <ul aria-label="Portfolio totals">
+                  {snapshot.round.totals.map((total) => (
+                    <li key={total.playerId}>
+                      {
+                        snapshot.players.find(
+                          (p) => p.playerId === total.playerId,
+                        )?.displayName
+                      }
+                      : D${(total.portfolioValueCents / 100).toFixed(2)}
+                    </li>
+                  ))}
+                </ul>
+              </section>
               <ul
                 className="opening-assets"
                 aria-label="Current quotes and your holdings"

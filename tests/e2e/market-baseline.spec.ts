@@ -35,7 +35,7 @@ for (const width of [1280, 360]) {
     }
     await expect(
       page.getByText(
-        "Ready your herd to open a round. Trading is coming next.",
+        "Ready your herd, then buy and sell protected trades against the game liquidity bot.",
       ),
     ).toBeVisible();
     await expect(
@@ -68,7 +68,9 @@ test("keeps the introduction during failure and retries with the real service", 
   );
   await expect(page.getByRole("listitem")).toHaveCount(0);
   await expect(
-    page.getByText("Ready your herd to open a round. Trading is coming next."),
+    page.getByText(
+      "Ready your herd, then buy and sell protected trades against the game liquidity bot.",
+    ),
   ).toBeVisible();
   await expect(
     page.getByText("Fictional market game. Virtual currency only."),

@@ -43,3 +43,9 @@ Persist valid trading attempts and their outcomes. Malformed and rate-limited tr
 - Total cash and each asset's total units across humans and the bot are conserved after initial round funding. Reference-price changes do not create cash or units.
 - Final results are written once and cannot be changed by later commentary or reactions.
 - A committed event stream plus its initial configuration reconstructs authoritative market state. Mutable projections are replaceable accelerators.
+
+### Durable trading storage (ticket #10 stage)
+
+Migration 5 adds immutable `orders` keyed by round/player/request, storing canonical public content, original private outcome, commit sequence, and authoritative processing time. Immutable `trades` link each fill to its source event and owned order. These records commit with the complete engine batch, ledgers/assets in the projection, and room visibility sequence. Replay validates every derived order, fill and stored public view against deterministic history. Closed attempts in this stage have no engine receipt or batch: their zero-fill outcome is validated against its committed state anchor and the frozen close deadline.
+
+`round_batches.public_view` stores the batch's verified public view in the same transaction, avoiding historical replay for each recipient. Pre-migration batches retain a reconstruction fallback. An owned state cache accepts generated states only after commit, invalidates on failed transactions or ownership/database loss, and compares its projection on reads. Startup and readiness still verify full immutable history and derived records. The cache is an accelerator; it does not replace committed history.

@@ -82,7 +82,7 @@ sequence; top-level `sequence` is the independent room snapshot sequence.
 Opened-round reads replay committed batches and reject inconsistent projections.
 All locked participants retain their resources through disconnect; an empty
 OPEN room does not expire. The browser shows current resources, reference/last prices, ladders, and authored news,
-without trading controls, and derives countdowns from server time and deadlines.
+with a protected buy/sell ticket, and derives countdowns from server time and deadlines.
 
 `GET /healthz` is liveness, with `/health` retained as an alias. `GET /readyz`
 returns 200 only with usable database ownership and validated supported state;
@@ -133,3 +133,11 @@ The extended browser journey waits for the real first 60-second event. The
 all-nine-deadline, rollback, and restart cases use fake authoritative time with
 real isolated PostgreSQL. See [ticket #9 evidence](validation/ticket-9-events.md)
 for executed checks and remaining acceptance boundaries.
+
+## Durable protected trading
+
+`order:submit` accepts the strict public request and derives identity from the session. The player-wide five/second token budget has burst ten, including retries across tabs. Matching and due effects use the owned serialized transaction. New attempts persist an immutable outcome and source-linked fills; retries retrieve the original private balances and sequence. Changed content under the same identity fails.
+
+The [trading wire contract](spec/api-and-recovery.md#durable-trading-delivery-ticket-10-stage) defines results, errors, public executions/totals, frozen ticket rules, recent owner outcomes, and connection heartbeats. Reconnect obtains an authoritative snapshot before resolving or retrying a pending order. Quotes can age while the connection remains healthy; fresh heartbeats are separate evidence. Old results confirm only their original request and cannot replace newer private resources. At close the ticket disables; settlement/results remain #11.
+
+The keyboard-accessible ticket uses whole units, conservative integer protection rounding from the displayed best quote, nonguaranteed estimates, clearly labeled bot fills, and announced results. Tests cover two browsers at 360px, partial/zero/rejected/filled outcomes, postcommit delivery loss, unchanged pending identity, and preserved Daily Roar news. See [ticket #10 evidence](validation/ticket-10-trading.md) for the actual checks and limitations.

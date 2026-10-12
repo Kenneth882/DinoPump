@@ -138,6 +138,42 @@ const migrations = [
       );
     `,
   },
+  {
+    version: 5,
+    sql: `
+      ALTER TABLE round_batches ADD COLUMN public_view jsonb;
+      CREATE TABLE orders (
+        round_id uuid NOT NULL REFERENCES rounds(round_id),
+        player_id uuid NOT NULL REFERENCES guest_sessions(player_id),
+        request_id uuid NOT NULL,
+        request jsonb NOT NULL,
+        outcome jsonb NOT NULL,
+        committed_sequence bigint NOT NULL,
+        processed_at_ms bigint NOT NULL CHECK (processed_at_ms >= 0),
+        PRIMARY KEY (round_id,player_id,request_id),
+        FOREIGN KEY (round_id,committed_sequence) REFERENCES game_events(round_id,sequence),
+        CHECK (request->>'roundId'=round_id::text),
+        CHECK (request->>'requestId'=request_id::text),
+        CHECK (outcome->>'roundId'=round_id::text),
+        CHECK (outcome->>'requestId'=request_id::text),
+        CHECK ((outcome->>'sequence')::bigint=committed_sequence)
+      );
+      CREATE TRIGGER immutable_order BEFORE UPDATE OR DELETE ON orders
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE TABLE trades (
+        round_id uuid NOT NULL,
+        sequence bigint NOT NULL,
+        player_id uuid NOT NULL,
+        request_id uuid NOT NULL,
+        fill jsonb NOT NULL,
+        PRIMARY KEY (round_id,sequence),
+        FOREIGN KEY (round_id,sequence) REFERENCES game_events(round_id,sequence),
+        FOREIGN KEY (round_id,player_id,request_id) REFERENCES orders(round_id,player_id,request_id)
+      );
+      CREATE TRIGGER immutable_trade BEFORE UPDATE OR DELETE ON trades
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */

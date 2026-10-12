@@ -85,13 +85,18 @@ projection equality, authored news, and job inputs against committed facts.
 It rejects inconsistent storage rather than silently repairing it.
 
 `LobbyStore.withMarketRound(roundId, work)` is the internal service seam for
-future market commands. It shares the timer's owned queue and drains due effects
-before invoking `work(client, state, now)` inside that transaction. Ticket #10
-must authenticate commands, persist the complete outcome inside this callback,
-and publish only after the returned promise commits. Calling transaction helpers
+internal market work. It shares the timer's owned queue and drains due effects
+before invoking `work(client, state, now)` inside that transaction. Authenticated trading uses `LobbyStore.submitOrder(secret, code, input)` on this
+same owned queue and publishes only after the returned promise commits. Calling transaction helpers
 on an unrelated connection or separating matching from serialization is unsafe.
 
 `LobbyStore.open` replays and catches up missed pre-close effects before returning.
 The service remains unready after the closing deadline because settlement is
 still ticket #11. General projection rebuilding and trade crash recovery remain
 #13. Late catch-up never moves the persisted round deadlines.
+
+## Durable orders and fills
+
+Migration 5 adds immutable `orders` and `trades`, unique round/player/request identities, event/owner foreign keys, and transactional `round_batches.public_view`. Orders store canonical content and original private results; fills retain their source event sequence and order identity. Replay checks these derived records and public views against deterministic history. Original outcomes survive later trades, close, and restart. Closed attempts are zero-fill results anchored to existing committed state until #11 supplies settlement. Durable identity storage is never limited to the 20 outcomes shown in an owner snapshot.
+
+The owned cache stores only committed verified engine states, checks their projection on reads, and invalidates on transaction failure or ownership/database loss. Startup and readiness verify full history, outcome/fill linkage, news/jobs, and projections. Materialized public views avoid replay per recipient; pre-migration history can still be reconstructed. This does not add projection repair or full crash settlement (#13).
