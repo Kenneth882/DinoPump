@@ -14,6 +14,8 @@ import {
   lobbyErrorSchema,
   lobbyCommandErrorSchema,
   lobbySnapshotSchema,
+  marketBatchSchema,
+  newsItemSchema,
   roomCommandOutcomeSchema,
   roomCodeSchema,
   sessionResponseSchema,
@@ -135,6 +137,26 @@ export function Lobby() {
     });
     let active = true;
     let synchronized = false;
+    let visible: LobbySnapshot | null = null;
+    let resyncPending = false;
+    function requestSnapshot() {
+      synchronized = false;
+      setConnection("Synchronizing…");
+      if (resyncPending || !socket.connected) return;
+      resyncPending = true;
+      void socket
+        .timeout(2500)
+        .emitWithAck("room:resync", {
+          code: activeCode,
+          requestId: crypto.randomUUID(),
+        })
+        .catch(() => {
+          /* The retry timer requests another authoritative snapshot. */
+        })
+        .finally(() => {
+          resyncPending = false;
+        });
+    }
     function report(data: unknown) {
       const parsed = lobbyCommandErrorSchema.safeParse(data);
       setError(
@@ -204,12 +226,16 @@ export function Lobby() {
         setConnection("Synchronizing…");
         return;
       }
-      setSnapshot((previous) =>
-        previous?.code === activeCode &&
-        previous.sequence > parsed.data.sequence
-          ? previous
-          : parsed.data,
-      );
+      if (
+        visible &&
+        (visible.sequence > parsed.data.sequence ||
+          (visible.round?.roundId === parsed.data.round?.roundId &&
+            (visible.round?.sequence ?? 0) >
+              (parsed.data.round?.sequence ?? 0)))
+      )
+        return;
+      visible = parsed.data;
+      setSnapshot(visible);
       setServerClock({
         at: parsed.data.serverTime,
         received: performance.now(),
@@ -220,11 +246,60 @@ export function Lobby() {
       setError("");
       sendPending();
     });
+    socket.on("market:batch", (data: unknown) => {
+      const parsed = marketBatchSchema.safeParse(data);
+      if (
+        !parsed.success ||
+        !visible?.round ||
+        parsed.data.roundId !== visible.round.roundId
+      ) {
+        requestSnapshot();
+        return;
+      }
+      const batch = parsed.data;
+      if (batch.endSequence <= visible.round.sequence) return;
+      if (!synchronized || batch.startSequence !== visible.round.sequence + 1) {
+        requestSnapshot();
+        return;
+      }
+      const news = new Map(
+        visible.round.news.map((item) => [item.sourceEventId, item]),
+      );
+      for (const item of batch.news) news.set(item.sourceEventId, item);
+      visible = {
+        ...visible,
+        serverTime: batch.serverTime,
+        round: {
+          ...visible.round,
+          sequence: batch.endSequence,
+          assets: batch.assets,
+          quotes: batch.quotes,
+          news: [...news.values()].sort((a, b) => a.sequence - b.sequence),
+        },
+      };
+      setSnapshot(visible);
+      setServerClock({ at: batch.serverTime, received: performance.now() });
+      setElapsed(0);
+    });
+    // Initial template facts are applied with their market batch, never as half a batch.
+    socket.on("news:update", (data: unknown) => {
+      const parsed = newsItemSchema.safeParse(data);
+      if (
+        !parsed.success ||
+        !visible?.round?.news.some(
+          (item) => item.sourceEventId === parsed.data.sourceEventId,
+        )
+      )
+        requestSnapshot();
+    });
     // Server-side disconnects (for example database loss) also need backoff.
     const reconnect = setInterval(() => {
       if (!socket.connected && !socket.active) socket.connect();
     }, 5000);
-    const retry = setInterval(sendPending, 500);
+    const retry = setInterval(() => {
+      if (socket.connected && !synchronized) requestSnapshot();
+      sendPending();
+    }, 500);
     return () => {
       active = false;
       clearInterval(reconnect);
@@ -466,7 +541,7 @@ export function Lobby() {
           )}
           {snapshot?.round && (
             <section aria-labelledby="opening-heading">
-              <h3 id="opening-heading">Opening resources</h3>
+              <h3 id="opening-heading">Market and your resources</h3>
               <p data-testid="round-remaining">
                 Round closes in {secondsUntil(snapshot.round.closesAt)} seconds.
               </p>
@@ -481,16 +556,23 @@ export function Lobby() {
                 </strong>
               </p>
               <p>
-                Opening quotes are shown below. Trading and scheduled news
-                arrive in the next game updates.
+                Events move reference prices and executable quotes. Last-trade
+                prices change only after a trade. Trading is coming next.
               </p>
               <ul
                 className="opening-assets"
-                aria-label="Opening quotes and your holdings"
+                aria-label="Current quotes and your holdings"
               >
                 {snapshot.round.assets.map((asset) => (
                   <li key={asset.symbol}>
                     <h4>{asset.symbol}</h4>
+                    <p>
+                      Reference: D$
+                      {(asset.referencePriceCents / 100).toFixed(2)}
+                    </p>
+                    <p>
+                      Last trade: D${(asset.lastPriceCents / 100).toFixed(2)}
+                    </p>
                     <p>
                       Your units:{" "}
                       {snapshot.round!.portfolio.holdings[asset.symbol]}
@@ -517,6 +599,50 @@ export function Lobby() {
                   </li>
                 ))}
               </ul>
+              <section aria-labelledby="news-heading" className="daily-roar">
+                <h3 id="news-heading">The Daily Roar</h3>
+                {snapshot.round.news.length === 0 ? (
+                  <p>
+                    No news yet. The first market event arrives one minute into
+                    the round.
+                  </p>
+                ) : (
+                  <ol aria-label="Market news">
+                    {snapshot.round.news.map((item) => (
+                      <li key={item.sourceEventId} data-testid="news-item">
+                        <article>
+                          <h4>{item.headline}</h4>
+                          <p>{item.facts}</p>
+                          <p>{item.commentary}</p>
+                          <p>
+                            Authored game news ·{" "}
+                            <time
+                              dateTime={new Date(
+                                item.appliedAtMs,
+                              ).toISOString()}
+                            >
+                              {new Date(item.appliedAtMs).toLocaleTimeString(
+                                "en-US",
+                              )}
+                            </time>
+                          </p>
+                          <ul aria-label="Reference price effects">
+                            {item.effects.map((effect) => (
+                              <li key={effect.symbol}>
+                                {effect.symbol}:{" "}
+                                {effect.changeBps >= 0 ? "+" : ""}
+                                {effect.changeBps / 100}% reference effect · D$
+                                {(effect.beforeCents / 100).toFixed(2)} → D$
+                                {(effect.afterCents / 100).toFixed(2)}
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
             </section>
           )}
           <p>

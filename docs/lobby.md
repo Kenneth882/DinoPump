@@ -75,23 +75,22 @@ record. Failure rolls back all writes. Timer delay/retry preserves recorded
 deadlines; it does not grant extra round time. Publication follows commit.
 
 The opened snapshot has `round: { roundId, sequence, opensAt, closesAt, assets,
-quotes, portfolio }` and `countdown: null`. `portfolio` contains only the requesting
+quotes, portfolio, news }` and `countdown: null`. `portfolio` contains only the requesting
 player's cash and holdings. Future catalog events/schedules, other portfolios,
 and the internal engine state stay private. `round.sequence` is the market event
 sequence; top-level `sequence` is the independent room snapshot sequence.
 Opened-round reads replay committed batches and reject inconsistent projections.
 All locked participants retain their resources through disconnect; an empty
-OPEN room does not expire. The browser shows opening resources and ladders,
+OPEN room does not expire. The browser shows current resources, reference/last prices, ladders, and authored news,
 without trading controls, and derives countdowns from server time and deadlines.
 
 `GET /healthz` is liveness, with `/health` retained as an alias. `GET /readyz`
 returns 200 only with usable database ownership and validated supported state;
 otherwise it returns 503. Ownership is checked before work and before commit,
 including when a live connection loses its advisory lock. Database/ownership
-loss fails closed until process restart. With this opening-only implementation,
-readiness also becomes false at the first unapplied event deadline or closing
-deadline. Scheduled effects and overdue-event/close recovery arrive in later
-tickets; snapshots remain explicitly opening data rather than a playable market.
+loss fails closed until process restart. Readiness is false while an event is overdue and returns after successful catch-up.
+Startup drains missed pre-close events. Readiness remains false at/after the closing
+deadline until ticket #11 implements settlement; this is not yet a playable full round.
 
 ## Validation boundaries
 
@@ -110,3 +109,27 @@ Ticket #7 originally demonstrated lobby AC-01/05 and lobby-only AC-10/17 with sy
 Validation recorded October 5, 2026: `pnpm check` passed lint, formatting, typechecking, 190 database-independent tests, and production builds. `pnpm db:verify` passed 32 PostgreSQL/service cases, including ownership-connection loss and recovery. `pnpm test:e2e` passed all five browser cases; the multiplayer case includes two profiles, offline/reconnect, reload identity after a temporary session lookup failure, keyboard submission, and a 360px layout screenshot. All disposable database containers were cleaned up. Changed documentation links resolve. This establishes the lobby slice only, not the full round acceptance criteria.
 
 The two-axis code review found duplicated timing constants, duplicated browser cleanup, and a transient startup-session recovery gap. All were corrected and re-reviewed: Standards 0 remaining findings; Spec 0 remaining findings. The new regressions demonstrate configured room deadlines and recovery of the original browser identity after session lookup failures.
+
+## Scheduled events and Daily Roar
+
+The service checks persisted deadlines every 250ms, with at most one pending
+timer task. Events still occur only at their frozen 60-second deadlines, through
+540 seconds; polling does not change gameplay timing. The owned queue operates
+even with zero sockets. Each successful drain records structured
+`scheduler.applied` entries with round/schedule IDs, due time, postcommit time,
+and `lagMs = max(0, committedAtMs - dueAtMs)`. These measure due-to-commit latency,
+including queue and transaction delay, against the healthy ≤1-second target.
+
+Authenticated participants receive complete `market:batch` updates followed by
+`news:update`; full snapshots include applied news for reconnect. See the
+[stage-specific wire contract](spec/api-and-recovery.md#scheduled-event-delivery-ticket-9-stage).
+The browser applies a batch and its template news coherently, ignores duplicate
+batches, and requests a fresh snapshot for gaps. It retains the original news
+identity/timestamp through reconnect. Authored text is rendered as text, with no
+provider call, key, or worker required. Other players' private resources and the
+future event schedule are excluded from public updates.
+
+The extended browser journey waits for the real first 60-second event. The
+all-nine-deadline, rollback, and restart cases use fake authoritative time with
+real isolated PostgreSQL. See [ticket #9 evidence](validation/ticket-9-events.md)
+for executed checks and remaining acceptance boundaries.

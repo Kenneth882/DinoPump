@@ -1,11 +1,16 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { publicMarketView } from "./market-view.js";
+import { readMarketUpdates } from "./market-updates.js";
+import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
 import { persistRoundOpening, readOpenedRound } from "./opened-round.js";
 import {
   guestRequestSchema,
+  newsItemSchema,
   gameplayRulesSchema,
   type Baseline,
+  type EngineState,
   playerSchema,
   lobbySnapshotSchema,
   roomCodeSchema,
@@ -128,7 +133,7 @@ export class LobbyStore {
         for (const room of rooms.rows) {
           const state = await readOpenedRound(client, room.current_round_id);
           if (!state) throw new Error("Missing active round");
-          // Due-event and close recovery arrive in later tickets. Do not claim readiness past this slice's supported state.
+          // Ready only after due effects catch up; settlement arrives in ticket #11.
           const next = state.round.schedule[state.nextScheduledEvent];
           if (now >= state.round.closesAtMs || (next && now >= next.dueAtMs))
             return false;
@@ -258,12 +263,13 @@ export class LobbyStore {
               sequence: engine.sequence,
               opensAt: engine.round.opensAtMs,
               closesAt: engine.round.closesAtMs,
-              assets: engine.trading.market.assets.map((asset) => ({
-                symbol: asset.symbol,
-                referencePriceCents: asset.referencePriceCents,
-                lastPriceCents: engine.trading.lastPrices[asset.symbol],
-              })),
-              quotes: engine.trading.quotes,
+              ...publicMarketView(engine),
+              news: (
+                await client.query(
+                  "SELECT item FROM news_items WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
+                  [engine.round.roundId],
+                )
+              ).rows.map((row) => newsItemSchema.parse(row.item)),
               portfolio: {
                 cashCents: human.cashCents,
                 holdings: human.holdings,
@@ -562,8 +568,65 @@ export class LobbyStore {
     });
   }
 
+  /** Internal service seam: authenticate commands before entering; persist their result here. */
+  withMarketRound<T>(
+    roundId: string,
+    work: (client: PoolClient, state: EngineState, now: number) => Promise<T>,
+  ) {
+    roundInitializationSchema.shape.roundId.parse(roundId);
+    return this.run(async (client, now) => {
+      const { state } = await this.catchUpRound(client, roundId, now);
+      return work(client, state, now);
+    });
+  }
+
+  private async catchUpRound(client: PoolClient, roundId: string, now: number) {
+    const room = await client.query(
+      "SELECT code FROM rooms WHERE current_round_id=$1 AND status='OPEN'",
+      [roundId],
+    );
+    if (!room.rowCount) throw new LobbyError("INVALID_ROOM_STATE");
+    const initial = await readOpenedRound(client, roundId);
+    if (!initial) throw new Error("Missing active round");
+    const state = await applyDueEvents(client, initial, now);
+    const applied = initial.round.schedule
+      .slice(initial.nextScheduledEvent, state.nextScheduledEvent)
+      .map((event) => ({
+        roundId,
+        scheduledEventId: event.scheduledEventId,
+        dueAtMs: event.dueAtMs,
+      }));
+    if (state.sequence !== initial.sequence)
+      await client.query("UPDATE rooms SET sequence=sequence+1 WHERE code=$1", [
+        room.rows[0].code,
+      ]);
+    return { state, applied };
+  }
+
+  marketUpdates(
+    secret: string,
+    code: string,
+    roundId: string,
+    afterSequence: number,
+  ) {
+    return this.run(async (client, now) => {
+      const player = await this.member(client, secret, code, now);
+      const snapshot = await this.visible(client, code, now, player.playerId);
+      if (snapshot.round?.roundId !== roundId)
+        throw new LobbyError("INVALID_REQUEST");
+      const state = await readOpenedRound(client, roundId);
+      if (!state) throw new Error("Missing active round");
+      return readMarketUpdates(client, state, afterSequence, now);
+    });
+  }
+
   processDue() {
     return this.run(async (client, now) => {
+      const applied: {
+        roundId: string;
+        scheduledEventId: string;
+        dueAtMs: number;
+      }[] = [];
       await this.cancelDisconnectedCountdowns(client, now);
       const countdowns = await client.query(
         "SELECT code,initialization FROM room_countdowns c JOIN rooms r USING(code) WHERE r.status='COUNTDOWN'",
@@ -578,6 +641,17 @@ export class LobbyStore {
         );
         await client.query("DELETE FROM room_countdowns WHERE code=$1", [code]);
         await this.record(client, code, "RoundOpened", null, now);
+      }
+      const active = await client.query(
+        "SELECT code,current_round_id FROM rooms WHERE status='OPEN'",
+      );
+      for (const room of active.rows) {
+        const result = await this.catchUpRound(
+          client,
+          room.current_round_id,
+          now,
+        );
+        applied.push(...result.applied);
       }
       const rooms = await client.query(
         "SELECT * FROM rooms WHERE status='LOBBY'",
@@ -611,6 +685,14 @@ export class LobbyStore {
           await this.record(client, room.code, "HostTransferred", hostId, now);
         }
       }
+      return applied;
+    }).then((applied) => {
+      const committedAtMs = this.clock();
+      return applied.map((event) => ({
+        ...event,
+        committedAtMs,
+        lagMs: Math.max(0, committedAtMs - event.dueAtMs),
+      }));
     });
   }
 }

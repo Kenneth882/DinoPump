@@ -240,7 +240,10 @@ it("atomically opens once with exact resources and restores private snapshots af
   await store.close();
   store = await LobbyStore.open(database.pool, () => now);
   await store.connect(host.secret, code);
-  expect((await store.snapshot(host.secret, code)).round).toEqual(first.round);
+  const recovered = (await store.snapshot(host.secret, code)).round!;
+  expect(recovered.portfolio).toEqual(first.round!.portfolio);
+  expect(recovered.closesAt).toBe(first.round!.closesAt);
+  expect(recovered.news).toHaveLength(5);
   expect(await store.start(host.secret, code, { requestId })).toEqual(started);
 });
 afterEach(async () => {

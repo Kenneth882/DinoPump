@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { newsItemSchema } from "./news.js";
 import { assetSymbolSchema } from "./baseline.js";
 import { botQuoteSchema } from "./bot-quotes.js";
 import { frozenRoundSchema } from "./round-baseline.js";
@@ -61,6 +62,7 @@ export const openedRoundViewSchema = z.strictObject({
     )
     .length(4),
   quotes: z.array(botQuoteSchema).max(24),
+  news: z.array(newsItemSchema),
   portfolio: frozenRoundSchema.shape.initialState.shape.humans.element.omit({
     playerId: true,
     joinOrder: true,
@@ -135,3 +137,20 @@ export type LobbyErrorCode = keyof typeof lobbyErrorMessages;
 export type GuestPlayer = z.infer<typeof playerSchema>;
 export type LobbySnapshot = z.infer<typeof lobbySnapshotSchema>;
 export type RoomCommandOutcome = z.infer<typeof roomCommandOutcomeSchema>;
+
+/** One complete committed engine batch, projected to public market facts only. */
+export const marketBatchSchema = z
+  .strictObject({
+    roundId: z.uuid(),
+    startSequence: z.number().int().positive(),
+    endSequence: z.number().int().positive(),
+    serverTime: z.number().int().nonnegative(),
+    assets: openedRoundViewSchema.shape.assets,
+    quotes: openedRoundViewSchema.shape.quotes,
+    news: z.array(newsItemSchema),
+  })
+  .refine(
+    (batch) => batch.endSequence >= batch.startSequence,
+    "Invalid batch range",
+  );
+export type MarketBatch = z.infer<typeof marketBatchSchema>;

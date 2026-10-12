@@ -45,6 +45,14 @@ All commands use runtime validation. The server derives player identity from the
 
 Every command receives an acknowledgement carrying its request ID and outcome. Public batches contain a complete sequence envelope even when some event details are private; private holdings/order details are delivered only to their owner. Leaderboard portfolio totals and executed trade activity are public within the room.
 
+### Scheduled-event delivery (ticket #9 stage)
+
+Opening snapshots include `round.news`, the ordered authored news for already-applied events. Each item has `sourceEventId`, `roundId`, `scheduledEventId`, source `sequence`, `dueAtMs`, `appliedAtMs`, `catalogEventId`, `facts`, `headline`, `commentary`, `iconId`, actual reference `effects` (`symbol`, `beforeCents`, `afterCents`, `changeBps`), and `narrationStatus: "pending"`. Pending narration leaves the authored copy immediately visible; worker publication is a later slice.
+
+`market:batch` carries `roundId`, `startSequence`, `endSequence`, `serverTime`, complete public `assets` and `quotes` at that batch's end, and its applied `news`. Public assets contain symbol, reference price, and last-trade price only. The service emits a complete committed batch followed by `news:update` for each source item. Clients apply market and template news together, deduplicate by source ID, and request a snapshot on a sequence gap or round change. Room snapshot sequence and round market sequence remain distinct. No future schedule, job input, engine ledger, or other player's holdings appears in these payloads.
+
+The existing `room:resync { code, requestId }` acknowledgement remains supported during this stage. Full pending-order reconciliation and the round-based resync command are implemented in the later client-recovery ticket.
+
 ### Recovery behavior
 
 - The browser reconnects automatically with backoff, then requests a fresh snapshot before enabling trades.

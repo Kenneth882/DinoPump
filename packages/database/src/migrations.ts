@@ -107,6 +107,37 @@ const migrations = [
       );
     `,
   },
+  {
+    version: 4,
+    sql: `
+      -- Preserve UUID causes verbatim while supporting recorded schedule IDs.
+      ALTER TABLE game_events ALTER COLUMN cause_id TYPE text USING cause_id::text;
+      ALTER TABLE game_events ADD UNIQUE (round_id, event_id);
+      CREATE TABLE news_items (
+        source_event_id uuid PRIMARY KEY REFERENCES game_events(event_id),
+        round_id uuid NOT NULL REFERENCES rounds(round_id),
+        scheduled_event_id text NOT NULL,
+        item jsonb NOT NULL,
+        UNIQUE (round_id, scheduled_event_id),
+        FOREIGN KEY (round_id,source_event_id) REFERENCES game_events(round_id,event_id),
+        CHECK (item->>'sourceEventId' = source_event_id::text),
+        CHECK (item->>'roundId' = round_id::text),
+        CHECK (item->>'scheduledEventId' = scheduled_event_id)
+      );
+      CREATE TRIGGER immutable_news BEFORE UPDATE OR DELETE ON news_items
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE TABLE commentary_jobs (
+        source_event_id uuid PRIMARY KEY REFERENCES news_items(source_event_id),
+        input jsonb NOT NULL,
+        status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','leased','completed','failed')),
+        attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        next_attempt_at_ms bigint NOT NULL CHECK (next_attempt_at_ms >= 0),
+        lease_id uuid,
+        lease_expires_at_ms bigint,
+        CHECK ((lease_id IS NULL) = (lease_expires_at_ms IS NULL))
+      );
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */
