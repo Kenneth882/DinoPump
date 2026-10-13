@@ -128,7 +128,7 @@ it("catches up all nine frozen events without connections or a close-time event 
   await store.close();
   now = opening.closesAt + 30000;
   store = await LobbyStore.open(database.pool, () => now);
-  expect(await store.isReady()).toBe(false);
+  expect(await store.isReady()).toBe(true);
   const final = (await store.snapshot(host.secret, code)).round!;
   expect(final.news).toHaveLength(9);
   expect(final.news.map((item) => item.dueAtMs - opening.opensAt)).toEqual([

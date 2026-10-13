@@ -1,5 +1,6 @@
 import {
   lobbyErrorMessages,
+  roundEndedSchema,
   lobbyErrorSchema,
   lobbySnapshotSchema,
   sessionResponseSchema,
@@ -11,7 +12,11 @@ async function proxy(
 ) {
   const { lobby } = await context.params;
   const path = lobby.join("/");
-  if (!/^(session|rooms|rooms\/[A-Z0-9]{6}\/(join|snapshot))$/.test(path))
+  if (
+    !/^(session|rooms|rooms\/[A-Z0-9]{6}\/(join|snapshot)|rounds\/[0-9a-fA-F-]{36}\/results)$/.test(
+      path,
+    )
+  )
     return Response.json(
       { error: "INVALID_REQUEST", message: lobbyErrorMessages.INVALID_REQUEST },
       { status: 400 },
@@ -36,7 +41,9 @@ async function proxy(
     const body = response.ok
       ? path === "session"
         ? sessionResponseSchema.parse(raw)
-        : lobbySnapshotSchema.parse(raw)
+        : path.startsWith("rounds/")
+          ? roundEndedSchema.parse(raw)
+          : lobbySnapshotSchema.parse(raw)
       : lobbyErrorSchema.parse(raw);
     const output = new Headers({ "Cache-Control": "no-store" });
     const cookie = response.headers.get("set-cookie");

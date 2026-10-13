@@ -867,3 +867,68 @@ it("publishes no trade or successful result when a fill write rolls back", async
   expect(batches).toHaveLength(1);
   expect(results).toHaveLength(1);
 });
+it("delivers private terminal results and host reset through real HTTP and sockets (AC-05/11/17)", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest"),
+    outsider = await session("Outsider");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  const a = await connectGuest(host, room.code),
+    b = await connectGuest(guest, room.code);
+  for (const s of [a, b])
+    await s
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  const start = await a
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  await a
+    .timeout(2000)
+    .emitWithAck("room:resync", { code: room.code, requestId: randomUUID() });
+  await a.timeout(2000).emitWithAck("order:submit", {
+    roundId: start.roundId,
+    requestId: randomUUID(),
+    side: "buy",
+    symbol: "FERN",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  });
+  const endedA = new Promise((resolve) => a.once("round:ended", resolve));
+  const endedB = new Promise((resolve) => b.once("round:ended", resolve));
+  now += 600000;
+  const [resultA, resultB] = await Promise.all([endedA, endedB]);
+  expect(resultA).toMatchObject({
+    status: "FINISHED",
+    portfolio: { cashCents: 392000, holdings: { FERN: 150 } },
+  });
+  expect(resultB).toMatchObject({
+    status: "FINISHED",
+    portfolio: { cashCents: 1000000, holdings: { FERN: 0 } },
+  });
+  const response = await fetch(
+    `${origin}/api/rounds/${start.roundId}/results`,
+    { headers: { Cookie: host } },
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toEqual(resultA);
+  expect(
+    (
+      await fetch(`${origin}/api/rounds/${start.roundId}/results`, {
+        headers: { Cookie: outsider },
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (await fetch(`${origin}/api/rounds/${start.roundId}/results`)).status,
+  ).toBe(401);
+  const reset = { roundId: start.roundId, requestId: randomUUID() };
+  expect(
+    await b.timeout(2000).emitWithAck("room:return-to-lobby", reset),
+  ).toMatchObject({ error: "FORBIDDEN", requestId: reset.requestId });
+  expect(
+    await a.timeout(2000).emitWithAck("room:return-to-lobby", reset),
+  ).toMatchObject({ status: "LOBBY", roundId: null });
+}, 10000);

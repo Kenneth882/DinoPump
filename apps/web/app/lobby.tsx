@@ -7,10 +7,12 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { RoundResults } from "./round-results";
 import { TradeTicket } from "./trade-ticket";
 import { io } from "socket.io-client";
 import {
   guestRequestSchema,
+  roundEndedSchema,
   orderResultSchema,
   tradingCommandErrorSchema,
   roomHeartbeatSchema,
@@ -84,8 +86,8 @@ export function Lobby() {
     retryAt: number;
   } | null>(null);
   const command = useRef<{
-    event: "room:ready" | "round:start";
-    payload: { requestId: string; ready?: boolean };
+    event: "room:ready" | "round:start" | "room:return-to-lobby";
+    payload: { requestId: string; ready?: boolean; roundId?: string };
     sending: boolean;
     retryAt: number;
   } | null>(null);
@@ -238,7 +240,7 @@ export function Lobby() {
         !visible?.round ||
         parsed.data.roundId !== visible.round.roundId
       ) {
-        requestSnapshot();
+        if (!parsed.success) requestSnapshot();
         return;
       }
       const result = parsed.data,
@@ -283,6 +285,40 @@ export function Lobby() {
       if (result.sequence > (visible.round?.sequence ?? 0)) requestSnapshot();
     }
     socket.on("order:result", receiveOrder);
+    socket.on("round:ended", (raw: unknown) => {
+      const parsed = roundEndedSchema.safeParse(raw);
+      if (!parsed.success) {
+        requestSnapshot();
+        return;
+      }
+      const result = parsed.data;
+      if (result.roundId !== visible?.round?.roundId) return;
+      // Settlement batches precede terminal delivery; otherwise resynchronize.
+      if (
+        result.status === "FINISHED" &&
+        result.settlementSequence > visible.round.sequence
+      ) {
+        requestSnapshot();
+        return;
+      }
+      visible = {
+        ...visible,
+        status: result.status,
+        terminal: result,
+        round:
+          result.status === "ABORTED"
+            ? null
+            : {
+                ...visible.round,
+                portfolio: result.portfolio,
+                portfolioSequence: Math.max(
+                  visible.round.portfolioSequence,
+                  result.settlementSequence,
+                ),
+              },
+      };
+      setSnapshot(visible);
+    });
     function sendTrade() {
       const current = trade.current;
       if (
@@ -398,6 +434,20 @@ export function Lobby() {
               portfolioSequence: visible.round.portfolioSequence,
             }
           : null;
+      if (
+        visible &&
+        (visible.round?.roundId ?? null) !==
+          (parsed.data.round?.roundId ?? null)
+      ) {
+        trade.current = null;
+        setTradePending(false);
+        setTradeResult(null);
+        setTradeMessage("");
+        if (command.current?.event === "room:return-to-lobby") {
+          command.current = null;
+          setCommandPending(false);
+        }
+      }
       visible = parsed.data;
       if (portfolio && visible.round)
         visible = { ...visible, round: { ...visible.round, ...portfolio } };
@@ -496,13 +546,24 @@ export function Lobby() {
     );
     return () => clearInterval(timer);
   }, [serverClock]);
-  function submitCommand(event: "room:ready" | "round:start", ready?: boolean) {
-    if (command.current || connection !== "Connected") return;
+  function submitCommand(
+    event: "room:ready" | "round:start" | "room:return-to-lobby",
+    ready?: boolean,
+  ) {
+    if (
+      command.current ||
+      connection !== "Connected" ||
+      (event === "room:return-to-lobby" && !snapshot?.terminal)
+    )
+      return;
     command.current = {
       event,
       payload: {
         requestId: crypto.randomUUID(),
         ...(ready === undefined ? {} : { ready }),
+        ...(event === "room:return-to-lobby"
+          ? { roundId: snapshot!.terminal!.roundId }
+          : {}),
       },
       sending: false,
       retryAt: 0,
@@ -719,7 +780,15 @@ export function Lobby() {
                 " Waiting for the server to open the round…"}
             </p>
           )}
-          {snapshot?.round && (
+          {snapshot?.terminal && (
+            <RoundResults
+              result={snapshot.terminal}
+              host={player?.playerId === snapshot.hostId}
+              disabled={commandPending || connection !== "Connected"}
+              onReturn={() => submitCommand("room:return-to-lobby")}
+            />
+          )}
+          {snapshot?.round && !snapshot.terminal && (
             <section aria-labelledby="opening-heading">
               <h3 id="opening-heading">Market and your resources</h3>
               <p data-testid="round-remaining">
@@ -744,6 +813,7 @@ export function Lobby() {
                 round={snapshot.round}
                 serverNow={serverNow}
                 enabled={
+                  snapshot.status === "OPEN" &&
                   connection === "Connected" &&
                   serverNow >= snapshot.round.opensAt &&
                   serverNow < snapshot.round.closesAt
@@ -753,6 +823,7 @@ export function Lobby() {
                 message={tradeMessage}
                 onSubmit={(payload) => {
                   if (
+                    snapshot.status !== "OPEN" ||
                     trade.current ||
                     connection !== "Connected" ||
                     serverNow >= snapshot.round!.closesAt

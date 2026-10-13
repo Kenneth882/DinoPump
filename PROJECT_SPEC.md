@@ -182,6 +182,8 @@ During the scheduled-events implementation stage (ticket #9), the availability n
 
 During the durable-trading stage (ticket #10), the availability notice reads “Ready your herd, then buy and sell protected trades against the game liquidity bot.” The round view adds a minimal protected buy/sell ticket, executed trades, and provisional public portfolio totals. Closing results and the full terminal remain later slices.
 
+During the closing/results stage (ticket #11), the availability notice reads “Ready your herd, then buy and sell protected trades against the game liquidity bot.” Closing adds immutable shared ranks, winner/tied winners, final value/profit/return, owned remaining cash/holdings, and a compact committed-event timeline. The host can return to the lobby and start a fresh round. An aborted round shows a safe explanation with no winner. The full terminal remains a later slice.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby
@@ -221,6 +223,7 @@ All controls support keyboard use and visible focus. Gains and losses use text o
 ### Results screen
 
 Show shared ranks, winner or tied winners, final portfolio value, profit, return, remaining cash/holdings, and a compact timeline of major market events. Provide a return-to-lobby action for the host. Full interactive replay is deferred.
+
 
 ## 7. Technical architecture
 
@@ -307,6 +310,13 @@ Migration 5 adds immutable `orders` keyed by round/player/request, storing canon
 
 `round_batches.public_view` stores the batch's verified public view in the same transaction, avoiding historical replay for each recipient. Pre-migration batches retain a reconstruction fallback. An owned state cache accepts generated states only after commit, invalidates on failed transactions or ownership/database loss, and compares its projection on reads. Startup and readiness still verify full immutable history and derived records. The cache is an accelerator; it does not replace committed history.
 
+### Immutable closing storage (ticket #11 stage)
+
+Migration 6 adds immutable `round_results`, keyed by round and linked to its settlement event sequence. Frozen public marks/ranks/display names/timeline and all private final portfolios commit with the settlement batch, projection, lifecycle transitions, and room visibility. Replay verifies result arithmetic and private portfolios against history; delivery selects only the authenticated owner's portfolio. Results cannot be updated or deleted and remain recorded after lobby reset.
+
+Immutable `round_aborts` stores a safe terminal explanation independently of an unverifiable market stream, preserving damaged evidence instead of inventing a replayable batch. Integrity recovery rolls back unsafe work before recording the abort in another owned transaction. Aborted snapshots do not read the corrupt projection or declare winners. Temporary database/ownership loss prevents all writes until safe recovery. General projection rebuilding and the full process-crash matrix remain ticket #13.
+
+
 ## 9. API and realtime contract
 
 All commands use runtime validation. The server derives player identity from the session and never trusts a player ID supplied in a payload. Guest sessions use secure, HttpOnly cookies in the same-site deployment; validate WebSocket origin and session expiry. Default session lifetime: 24 hours.
@@ -354,11 +364,21 @@ The existing `room:resync { code, requestId }` acknowledgement remains supported
 
 Successful acknowledgements and owner-only `order:result` use the same immutable result: submitted fields, original `sequence`, `status` (`FILLED`, `PARTIALLY_FILLED`, `NO_LIQUIDITY_WITHIN_PROTECTION`, or `REJECTED`), nullable `rejectionCode`, `fills`, `filledQuantity`, `remainingQuantity`, `totalValueCents`, nullable exact `averagePrice: { numeratorCents, denominatorUnits }`, and `portfolio: { cashCents, holdings }` after that order. Filled values and the average ratio agree exactly with the fills. A durable rejection is a result, not a transport error. Errors use `{ error, message, requestId? }`: malformed inputs use `INVALID_REQUEST`, excess submissions use `RATE_LIMITED`, changed identities use `IDEMPOTENCY_CONFLICT`, and unavailable/integrity failures use `SERVICE_UNAVAILABLE`. No internal validation details or credentials are exposed.
 
-The player-wide token budget applies before matching and durable readback, across all sockets: five tokens/second, capacity ten. A rate-limited retry preserves its original payload and identity. Authorized identical requests retrieve the original outcome before rechecking funds, quotes, or closing time; a retry never republishes an execution. New valid attempts drain due effects first. Until #11 adds settlement, at/after close they store an immutable `MARKET_CLOSED` outcome anchored to the current committed sequence, with no new engine batch or fills. Room visibility sequence advances for each new outcome. The service remains unready after close.
+The player-wide token budget applies before matching and durable readback, across all sockets: five tokens/second, capacity ten. A rate-limited retry preserves its original payload and identity. Authorized identical requests retrieve the original outcome before rechecking funds, quotes, or closing time; a retry never republishes an execution. New valid attempts drain due effects first. At/after close, settlement precedes new immutable `MARKET_CLOSED` outcomes anchored to committed state, with no new fills. Room visibility sequence advances for each new outcome. Verified terminal rounds remain ready.
 
 Opened snapshots add `tradingRules: { rulesVersion, prices, orders }` from the active frozen configuration, `quoteUpdatedAtMs`, `trades` (last 30 public fills), `totals` (marks-based public rankings), `portfolioSequence`, and `recentOrders` (up to 20 original outcomes belonging only to the requesting player). This visible bound never truncates durable identities; an older pending request can be resolved by unchanged authenticated resubmission. Public fills contain `sequence`, `symbol`, `quantity`, `priceCents`, `totalValueCents`, `buyerId`, and `sellerId`; the bot identity is `system:bot`. Public totals contain only player ID, join order, rank, portfolio value, profit and display return percentage. Holdings, request IDs and protection prices remain private.
 
 Every `market:batch` adds its public `trades`, complete `totals`, and `quoteUpdatedAtMs`; its sequence envelope includes private-only rejected batches. A `room:heartbeat { serverTime, roundId, sequence }` supplies fresh authorized connectivity evidence every second during healthy publication, independently of quote age. Three seconds without freshness evidence pauses trading and requests a snapshot. Reconnect or an acknowledgement timeout requests an authoritative snapshot before retrying the frozen original request. A snapshot's recent outcome may resolve it directly. Private results and snapshots advance portfolios only by their private sequence; older retry outcomes can confirm an order without regressing newer balances. New submissions are disabled while pending, disconnected, unsynchronized or at/after close.
+
+### Closing, results, and lobby reset (ticket #11 stage)
+
+The owned processor settles at `serverNow >= closesAt`, after applying events due strictly before close. `SETTLING` and `FINISHED` lifecycle records, the complete settlement batch, frozen results, and room visibility commit together. Terminal rounds remain ready once verified; outages never extend deadlines. New orders at/after close return durable zero-fill `MARKET_CLOSED` outcomes after settlement. Original authorized retries retain their original outcome and sequence. Earlier migration-5 deadline rejections remain readable.
+
+`GET /api/rounds/:roundId/results` requires a valid guest session belonging to the original locked participant set, including after lobby reset or a subsequent round. Responses are uncached and runtime-validated. Finished results contain `status`, `roundId`, `closesAtMs`, `marks`, `settlementSequence`, `rankings` with frozen display names, and an ordered `timeline` of committed source IDs, sequences, due times, authored headlines, facts, and effects. Each response adds only the authenticated owner's `playerId` and final `portfolio`. Public ranks/values/profit/return are shared; other cash/holdings, receipts, protections, and credentials remain private. Before completion, the route returns `INVALID_ROOM_STATE`; nonparticipants receive `FORBIDDEN`.
+
+`room:snapshot` adds nullable `terminal` with the same participant-specific result, and `round:ended` delivers it after commit. Clients accept it only for their visible round with complete settlement sequence coverage; snapshots recover missed terminal delivery. Results use frozen marks, not mutable quotes or narration. Aborted snapshots omit the unverifiable market view and contain only `{ status: "ABORTED", roundId, message }`, with a fixed safe explanation and no winner. Integrity abort metadata is stored independently when replay cannot safely append to market history. Database/ownership failures stop writes; they cannot fabricate settlement or abort without ownership.
+
+The host sends acknowledged `room:return-to-lobby { roundId, requestId }` from `FINISHED` or a safely recorded `ABORTED` round. Its transaction resets all readiness, clears countdown/current-round pointers, restores lobby host/expiry deadlines from presence, and retains historical data. Identical successful retries return the original acknowledgement even after a later round starts; changed content conflicts and stale new resets cannot affect another round. New starts freeze fresh IDs, seeds, configuration, and resources. The browser clears prior round state on authoritative round changes and ignores late old-round order/terminal messages.
 
 ### Recovery behavior
 
@@ -368,6 +388,7 @@ Every `market:batch` adds its public `trades`, complete `totals`, and `quoteUpda
 - Capture the snapshot at sequence N and deliver only subsequent buffered batches after it, avoiding a subscribe/snapshot race.
 - After restart, rebuild from committed data and process overdue scheduled events in due-time order before accepting commands. If closing time has passed, process events due strictly before close, then settle. Server outages do not extend the round.
 - Use a database ownership lock to prevent two game processes from operating the same room. Loss of ownership or database availability disables writes and trading until safe recovery.
+
 
 ## 10. Scheduled events and AI narration
 

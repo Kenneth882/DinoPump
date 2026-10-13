@@ -10,7 +10,7 @@ Read [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the MVP scope, game rules, archite
 
 For feature-specific work, use the [focused specification index](./docs/spec/README.md). Agent guardrails and task-to-spec routing live in [AGENTS.md](./AGENTS.md). The complete project specification remains the human reference.
 
-Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Nine scheduled events now update reference prices and quotes atomically with immediate Daily Roar news and persisted narration jobs. Participants can now buy and sell through a minimal protected ticket with atomic durable outcomes, private ledgers, public executions/totals, and retry/reconnect reconciliation. Results, the full terminal, and generated narration remain later work. See [trading evidence](docs/validation/ticket-10-trading.md). See [guest lobby setup and contracts](docs/lobby.md).
+Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Nine scheduled events now update reference prices and quotes atomically with immediate Daily Roar news and persisted narration jobs. Participants can now buy and sell through a minimal protected ticket with atomic durable outcomes, private ledgers, public executions/totals, and retry/reconnect reconciliation. Rounds now close once with immutable private/public results, and the host can return to the lobby for a fresh round. The full terminal and generated narration remain later work. See [results evidence](docs/validation/ticket-11-results.md). See [trading evidence](docs/validation/ticket-10-trading.md). See [guest lobby setup and contracts](docs/lobby.md).
 
 ## Local setup
 
@@ -24,6 +24,8 @@ nvm use
 npm install --global pnpm@10.34.5
 pnpm install --frozen-lockfile
 cp -n .env.example .env
+chmod 600 .env
+# Edit .env: replace both database password placeholders before first startup.
 pnpm db:up
 pnpm db:check
 pnpm db:migrate
@@ -32,7 +34,9 @@ pnpm dev
 
 The read-only introduction and its tests do not require PostgreSQL or an AI key; for introduction-only use, omit or empty `DATABASE_URL` and skip the database commands. Lobby features require PostgreSQL and migrations. Start Docker Desktop before `pnpm db:up`. Open <http://127.0.0.1:3000> for the web app. The service responds at <http://127.0.0.1:3001/health>; this remains a liveness alias for `/healthz`. `/readyz` checks owned database access and supported authoritative state. `Ctrl+C` stops the development processes. Run `nvm use` when opening a new terminal in this repository; installing Node with nvm does not replace your system Node.
 
-The root `.env` contains synthetic local database credentials and is ignored by Git. PostgreSQL **18.6** runs in Docker, binds only to `127.0.0.1:55432`, and stores data in the `dinopump_postgres-data` volume. `pnpm db:stop` stops PostgreSQL while preserving its data. If port 55432 is occupied, change both `POSTGRES_PORT` and the port in `DATABASE_URL` in `.env`. No AI API key is needed.
+The root `.env` contains your local database credentials and is ignored by Git. Replace the `POSTGRES_PASSWORD` and `DATABASE_URL` placeholders with the same unique password; URL-encode reserved characters in the connection URL. Keep real passwords and connection URLs in `.env` or your host's secret manager, never in `.env.example`, `NEXT_PUBLIC_*` variables, screenshots, or logs. The template documents the settings the current app supports; session credentials are generated by the service, and no narration-provider key is implemented yet.
+
+PostgreSQL **18.6** runs in Docker, binds only to `127.0.0.1:55432`, and stores data in the `dinopump_postgres-data` volume. `pnpm db:stop` stops PostgreSQL while preserving its data. If port 55432 is occupied, change both `POSTGRES_PORT` and the port in `DATABASE_URL` in `.env`. No AI API key is needed.
 
 ## Baseline content and service connection
 

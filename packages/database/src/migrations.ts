@@ -174,6 +174,41 @@ const migrations = [
         FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
     `,
   },
+  {
+    version: 6,
+    sql: `
+      CREATE TABLE round_aborts (
+        round_id uuid PRIMARY KEY REFERENCES rounds(round_id),
+        public_view jsonb NOT NULL,
+        CHECK (public_view->>'roundId'=round_id::text AND public_view->>'status'='ABORTED')
+      );
+      CREATE TRIGGER immutable_abort BEFORE UPDATE OR DELETE ON round_aborts
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE TABLE round_results (
+        round_id uuid PRIMARY KEY REFERENCES rounds(round_id),
+        settlement_sequence bigint NOT NULL,
+        public_result jsonb NOT NULL,
+        portfolios jsonb NOT NULL DEFAULT '{}',
+        FOREIGN KEY (round_id,settlement_sequence) REFERENCES game_events(round_id,sequence),
+        CHECK (public_result->>'roundId'=round_id::text),
+        CHECK (public_result->>'status'='FINISHED' AND (public_result->>'settlementSequence')::bigint=settlement_sequence)
+      );
+      CREATE TRIGGER immutable_result BEFORE UPDATE OR DELETE ON round_results
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE FUNCTION reject_terminal_conflict() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN
+          IF (TG_TABLE_NAME='round_aborts' AND EXISTS(SELECT 1 FROM round_results WHERE round_id=NEW.round_id))
+            OR (TG_TABLE_NAME='round_results' AND EXISTS(SELECT 1 FROM round_aborts WHERE round_id=NEW.round_id)) THEN
+            RAISE EXCEPTION 'Round terminal outcome is immutable';
+          END IF;
+          RETURN NEW;
+        END $$;
+      CREATE TRIGGER terminal_abort_guard BEFORE INSERT ON round_aborts
+        FOR EACH ROW EXECUTE FUNCTION reject_terminal_conflict();
+      CREATE TRIGGER terminal_result_guard BEFORE INSERT ON round_results
+        FOR EACH ROW EXECUTE FUNCTION reject_terminal_conflict();
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */

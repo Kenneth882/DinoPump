@@ -6,6 +6,7 @@ import {
   publicTotalsSchema,
 } from "./trading.js";
 import { z } from "zod";
+import { roundEndedSchema } from "./results.js";
 import { newsItemSchema } from "./news.js";
 import { assetSymbolSchema } from "./baseline.js";
 import { botQuoteSchema } from "./bot-quotes.js";
@@ -103,6 +104,7 @@ export const lobbySnapshotSchema = z
       })
       .nullable(),
     round: openedRoundViewSchema.nullable(),
+    terminal: roundEndedSchema.nullable().default(null),
     players: z
       .array(
         playerSchema

@@ -1,3 +1,10 @@
+import {
+  persistFinalResult,
+  participantResult,
+  RoundIntegrityError,
+  verifyFinalResult,
+  persistIntegrityAbort,
+} from "./results.js";
 import { isDeepStrictEqual } from "node:util";
 import { readOrder, persistOrder, readRecentOrders } from "./orders.js";
 import { processEngineCommand } from "@dinopump/engine";
@@ -14,6 +21,7 @@ import {
 } from "./opened-round.js";
 import {
   guestRequestSchema,
+  roundReturnSchema,
   orderSubmitSchema,
   type TradingErrorCode,
   type LobbySnapshot,
@@ -87,24 +95,31 @@ export class LobbyStore {
           rules: { ...baseline.rules, room: rules },
         }),
       );
-      await store.run(async (db, now) => {
-        const opened = await db.query(
-          "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL",
-        );
-        for (const room of opened.rows) {
-          if (!(await readOpenedRound(db, room.current_round_id)))
-            throw new Error("Missing active round");
-        }
-        // A previous process's sockets cannot survive ownership takeover.
-        await db.query(
-          "UPDATE rooms SET sequence=sequence+1, host_transfer_at=COALESCE(host_transfer_at,$1), expires_at=COALESCE(expires_at,$2) WHERE status='LOBBY' AND EXISTS(SELECT 1 FROM room_members m WHERE m.code=rooms.code AND m.connected_at IS NOT NULL)",
-          [now + rules.hostDisconnectGraceMs, now + rules.emptyLobbyExpiryMs],
-        );
-        await db.query(
-          "UPDATE room_members SET connected_at=NULL WHERE connected_at IS NOT NULL",
-        );
+      const recover = () =>
+        store.run(async (db, now) => {
+          const opened = await db.query(
+            "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL AND status<>'ABORTED'",
+          );
+          for (const room of opened.rows) {
+            if (!(await readOpenedRound(db, room.current_round_id)))
+              throw new Error("Missing active round");
+          }
+          // A previous process's sockets cannot survive ownership takeover.
+          await db.query(
+            "UPDATE rooms SET sequence=sequence+1, host_transfer_at=COALESCE(host_transfer_at,$1), expires_at=COALESCE(expires_at,$2) WHERE status='LOBBY' AND EXISTS(SELECT 1 FROM room_members m WHERE m.code=rooms.code AND m.connected_at IS NOT NULL)",
+            [now + rules.hostDisconnectGraceMs, now + rules.emptyLobbyExpiryMs],
+          );
+          await db.query(
+            "UPDATE room_members SET connected_at=NULL WHERE connected_at IS NOT NULL",
+          );
+        });
+      await recover().catch(async (error) => {
+        if (!(error instanceof RoundIntegrityError)) throw error;
+        await recover();
       });
-      await store.processDue();
+      await store.processDue().catch((error) => {
+        if (!(error instanceof RoundIntegrityError)) throw error;
+      });
       return store;
     } catch (error) {
       client.release(true);
@@ -131,6 +146,37 @@ export class LobbyStore {
         await this.client.query("ROLLBACK").catch(() => {
           this.available = false;
         });
+        if (error instanceof RoundIntegrityError) {
+          await this.client.query("BEGIN");
+          try {
+            await this.assertOwnership();
+            const aborted = await persistIntegrityAbort(
+              this.client,
+              error.roundId,
+            );
+            const room = (
+              await this.client.query(
+                "SELECT code FROM rooms WHERE current_round_id=$1",
+                [error.roundId],
+              )
+            ).rows[0];
+            if (room && aborted)
+              await this.record(
+                this.client,
+                room.code,
+                "RoundAborted",
+                null,
+                this.clock(),
+              );
+            await this.assertOwnership();
+            await this.client.query("COMMIT");
+          } catch (abortError) {
+            await this.client.query("ROLLBACK").catch(() => {
+              this.available = false;
+            });
+            throw abortError;
+          }
+        }
         throw error;
       }
     });
@@ -152,7 +198,19 @@ export class LobbyStore {
         Number(row.sequence) !== cached.sequence ||
         !isDeepStrictEqual(row.state, cached)
       )
-        throw new Error("Cached projection disagrees with committed state");
+        throw new RoundIntegrityError(
+          roundId,
+          "Cached projection disagrees with committed state",
+        );
+      try {
+        await verifyFinalResult(client, cached);
+      } catch (error) {
+        if (error instanceof Error && "code" in error) throw error;
+        throw new RoundIntegrityError(
+          roundId,
+          "Final result disagrees with committed state",
+        );
+      }
       return cached;
     }
     const verified = await readOpenedRound(client, roundId);
@@ -173,20 +231,22 @@ export class LobbyStore {
     try {
       return await this.run(async (client, now) => {
         const rooms = await client.query(
-          "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL",
+          "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL AND status<>'ABORTED'",
         );
         for (const room of rooms.rows) {
           const state = await readOpenedRound(client, room.current_round_id);
           if (!state) throw new Error("Missing active round");
-          // Ready only after due effects catch up; settlement arrives in ticket #11.
+          // Ready only after due effects catch up; terminal results remain ready.
           const next = state.round.schedule[state.nextScheduledEvent];
-          if (now >= state.round.closesAtMs || (next && now >= next.dueAtMs))
+          if (
+            state.trading.status === "OPEN" &&
+            (now >= state.round.closesAtMs || (next && now >= next.dueAtMs))
+          )
             return false;
         }
         return true;
       });
     } catch {
-      this.available = false;
       return false;
     }
   }
@@ -197,6 +257,11 @@ export class LobbyStore {
     this.available = false;
     this.engineCache.clear();
     this.orderBudgets.clear();
+    // Release ownership before the socket closes asynchronously, so immediate
+    // takeover cannot race PostgreSQL processing the old connection's EOF.
+    await this.client
+      .query("SELECT pg_advisory_unlock(18474, hashtext(current_schema()))")
+      .catch(() => {});
     this.client.release(true);
   }
   private closed = false;
@@ -268,18 +333,22 @@ export class LobbyStore {
         if (!previous.matches) throw new TradingError("IDEMPOTENCY_CONFLICT");
         return previous.outcome;
       }
+      if (room.status === "ABORTED") throw new TradingError("MARKET_CLOSED");
       const { state } = await this.catchUpRound(client, request.roundId, now);
       let resultState = state;
       let receipt = null;
       let batch = null;
-      if (now < state.round.closesAtMs) {
+      if (state.trading.status === "OPEN" && now < state.round.closesAtMs) {
         const result = processEngineCommand(state, {
           type: "SubmitOrder",
           atMs: now,
           order: { ...request, playerId: player.playerId },
         });
         if (!result.ok || !result.receipt || !result.batch)
-          throw new Error("Unsafe order processing");
+          throw new RoundIntegrityError(
+            request.roundId,
+            "Unsafe order processing",
+          );
         // Integrity/overflow failures are never disguised as player rejections.
         if (
           !result.receipt.result.ok &&
@@ -290,7 +359,7 @@ export class LobbyStore {
             "MARKET_CLOSED",
           ].includes(result.receipt.result.code)
         )
-          throw new Error("Unsafe settlement");
+          throw new RoundIntegrityError(request.roundId, "Unsafe settlement");
         resultState = result.state;
         receipt = result.receipt;
         batch = result.batch;
@@ -389,9 +458,10 @@ export class LobbyStore {
     const initialization = countdownRow.rows[0]
       ? roundInitializationSchema.parse(countdownRow.rows[0].initialization)
       : null;
-    const engine = room.current_round_id
-      ? await this.readState(client, room.current_round_id)
-      : null;
+    const engine =
+      room.current_round_id && room.status !== "ABORTED"
+        ? await this.readState(client, room.current_round_id)
+        : null;
     const publicRows = engine
       ? (
           await client.query(
@@ -422,6 +492,10 @@ export class LobbyStore {
     if (engine && !human) throw new LobbyError("FORBIDDEN");
     return lobbySnapshotSchema.parse({
       code,
+      terminal:
+        room.current_round_id && playerId
+          ? await participantResult(client, room.current_round_id, playerId)
+          : null,
       status: room.status,
       hostId: room.host_id,
       sequence: room.sequence,
@@ -539,7 +613,10 @@ export class LobbyStore {
     code: string,
     playerId: string,
     requestId: string,
-    command: { type: "Ready"; ready: boolean } | { type: "Start" },
+    command:
+      | { type: "Ready"; ready: boolean }
+      | { type: "Start" }
+      | { type: "Return"; roundId: string },
   ): Promise<RoomCommandOutcome | null> {
     const previous = await client.query(
       "SELECT command=$4::jsonb AS matches,outcome FROM room_commands WHERE code=$1 AND player_id=$2 AND request_id=$3",
@@ -554,7 +631,10 @@ export class LobbyStore {
     client: PoolClient,
     code: string,
     playerId: string,
-    command: { type: "Ready"; ready: boolean } | { type: "Start" },
+    command:
+      | { type: "Ready"; ready: boolean }
+      | { type: "Start" }
+      | { type: "Return"; roundId: string },
     outcome: RoomCommandOutcome,
   ) {
     await client.query("INSERT INTO room_commands VALUES ($1,$2,$3,$4,$5)", [
@@ -658,6 +738,90 @@ export class LobbyStore {
         sequence: room.sequence + 1,
         status: "COUNTDOWN",
         roundId: initialization.roundId,
+      });
+      await this.recordCommand(client, code, player.playerId, command, outcome);
+      return outcome;
+    });
+  }
+
+  results(secret: string, roundId: string) {
+    return this.run(async (client, now) => {
+      const identity = roundReturnSchema.shape.roundId.safeParse(roundId);
+      if (!identity.success) throw new LobbyError("INVALID_REQUEST");
+      roundId = identity.data;
+      const player = await this.authenticateAt(client, secret, now);
+      const row = (
+        await client.query(
+          "SELECT initialization FROM rounds WHERE round_id=$1",
+          [roundId],
+        )
+      ).rows[0];
+      if (
+        !row ||
+        !roundInitializationSchema
+          .parse(row.initialization)
+          .participantIds.includes(player.playerId)
+      )
+        throw new LobbyError("FORBIDDEN");
+      const abort = (
+        await client.query("SELECT 1 FROM round_aborts WHERE round_id=$1", [
+          roundId,
+        ])
+      ).rowCount;
+      if (!abort) await readOpenedRound(client, roundId);
+      const result = await participantResult(client, roundId, player.playerId);
+      if (!result) throw new LobbyError("INVALID_ROOM_STATE");
+      return result;
+    });
+  }
+  returnToLobby(secret: string, code: string, value: unknown) {
+    const parsed = roundReturnSchema.safeParse(value);
+    if (!parsed.success)
+      return Promise.reject(new LobbyError("INVALID_REQUEST"));
+    const { roundId, requestId } = parsed.data;
+    return this.run(async (client, now) => {
+      const player = await this.member(client, secret, code, now);
+      const command = { type: "Return" as const, roundId };
+      const previous = await this.replayCommand(
+        client,
+        code,
+        player.playerId,
+        requestId,
+        command,
+      );
+      if (previous) return previous;
+      const room = (
+        await client.query("SELECT * FROM rooms WHERE code=$1", [code])
+      ).rows[0];
+      if (room.host_id !== player.playerId) throw new LobbyError("FORBIDDEN");
+      if (
+        room.current_round_id !== roundId ||
+        !["FINISHED", "ABORTED"].includes(room.status)
+      )
+        throw new LobbyError("INVALID_ROOM_STATE");
+      if (!(await participantResult(client, roundId, player.playerId)))
+        throw new LobbyError("SERVICE_UNAVAILABLE");
+      await client.query("UPDATE room_members SET ready=false WHERE code=$1", [
+        code,
+      ]);
+      await client.query("DELETE FROM room_countdowns WHERE code=$1", [code]);
+      await client.query(
+        `UPDATE rooms SET status='LOBBY', current_round_id=NULL,sequence=sequence+1,
+        host_transfer_at=CASE WHEN EXISTS(SELECT 1 FROM room_members m JOIN guest_sessions s USING(player_id) WHERE m.code=$1 AND m.player_id=rooms.host_id AND m.connected_at IS NOT NULL AND s.expires_at_ms>$2) THEN NULL ELSE $3::bigint END,
+        expires_at=CASE WHEN EXISTS(SELECT 1 FROM room_members m JOIN guest_sessions s USING(player_id) WHERE m.code=$1 AND m.connected_at IS NOT NULL AND s.expires_at_ms>$2) THEN NULL ELSE $4::bigint END WHERE code=$1`,
+        [
+          code,
+          now,
+          now + this.roomRules.hostDisconnectGraceMs,
+          now + this.roomRules.emptyLobbyExpiryMs,
+        ],
+      );
+      await this.record(client, code, "ReturnedToLobby", player.playerId, now);
+      const outcome = roomCommandOutcomeSchema.parse({
+        requestId,
+        sequence: room.sequence + 1,
+        status: "LOBBY",
+        roundId: null,
       });
       await this.recordCommand(client, code, player.playerId, command, outcome);
       return outcome;
@@ -778,13 +942,34 @@ export class LobbyStore {
 
   private async catchUpRound(client: PoolClient, roundId: string, now: number) {
     const room = await client.query(
-      "SELECT code FROM rooms WHERE current_round_id=$1 AND status='OPEN'",
+      "SELECT code FROM rooms WHERE current_round_id=$1 AND status IN ('OPEN','FINISHED')",
       [roundId],
     );
     if (!room.rowCount) throw new LobbyError("INVALID_ROOM_STATE");
     const initial = await this.readState(client, roundId);
     if (!initial) throw new Error("Missing active round");
-    const state = await applyDueEvents(client, initial, now);
+    let state = await applyDueEvents(client, initial, now);
+    if (state.trading.status === "OPEN" && now >= state.round.closesAtMs) {
+      await client.query(
+        "UPDATE rooms SET status='SETTLING' WHERE current_round_id=$1",
+        [roundId],
+      );
+      await this.record(client, room.rows[0].code, "RoundSettling", null, now);
+      const settled = processEngineCommand(state, {
+        type: "SettleRound",
+        atMs: now,
+      });
+      if (!settled.ok || !settled.batch)
+        throw new RoundIntegrityError(roundId, "Unsafe round settlement");
+      await persistEngineBatch(client, settled.state, settled.batch);
+      await persistFinalResult(client, settled.state);
+      state = settled.state;
+      await client.query(
+        "UPDATE rooms SET status='FINISHED' WHERE current_round_id=$1",
+        [roundId],
+      );
+      await this.record(client, room.rows[0].code, "RoundFinished", null, now);
+    }
     this.transactionCache.set(roundId, state);
     const applied = initial.round.schedule
       .slice(initial.nextScheduledEvent, state.nextScheduledEvent)
@@ -864,6 +1049,11 @@ export class LobbyStore {
             );
             snapshot = {
               ...snapshot,
+              terminal: await participantResult(
+                client,
+                snapshot.round.roundId,
+                player.playerId,
+              ),
               round: {
                 ...snapshot.round,
                 recentOrders,

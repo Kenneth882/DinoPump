@@ -1,9 +1,10 @@
+import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
-test("two guests trade, reconcile lost delivery, observe news and reconnect at 360px (AC-03/04/06/10/17 subset)", async ({
+test("two guests trade, reconnect, finish, reset and start a fresh round at 360px (AC-11/17)", async ({
   browser,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(150_000);
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext({
     viewport: { width: 360, height: 800 },
@@ -320,6 +321,73 @@ test("two guests trade, reconcile lost delivery, observe news and reconnect at 3
       path: testInfo.outputPath("news-360.png"),
       fullPage: true,
     });
+    await guestContext.setOffline(true);
+    await expect(
+      guest.getByText("Reconnecting…", { exact: true }),
+    ).toBeVisible();
+    if (!process.env.DINOPUMP_E2E_CLOCK) throw new Error("Missing test clock");
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK, "600000");
+    await expect(
+      host.getByRole("heading", { name: "Round results", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await guestContext.setOffline(false);
+    await expect(
+      guest.getByRole("heading", { name: "Round results", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    const historical = async (page: typeof guest) =>
+      page.evaluate(
+        async (roundId) =>
+          (await fetch(`/api/rounds/${roundId}/results`)).json(),
+        opening.roundId,
+      );
+    const firstHostResult = await historical(host),
+      firstGuestResult = await historical(guest);
+    expect(firstGuestResult.rankings).toEqual(firstHostResult.rankings);
+    expect(firstHostResult.portfolio.cashCents).toBe(1000000);
+    expect(firstGuestResult.portfolio.holdings.FERN).toBe(1);
+    await expect(
+      guest
+        .getByRole("list", { name: "Round event timeline" })
+        .getByRole("listitem"),
+    ).toHaveCount(9);
+    await expect(
+      guest.getByRole("button", { name: "Return to lobby" }),
+    ).toHaveCount(0);
+    expect(
+      await guest.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await guest.screenshot({
+      path: testInfo.outputPath("results-360.png"),
+      fullPage: true,
+    });
+    await host.getByRole("button", { name: "Return to lobby" }).focus();
+    await host.keyboard.press("Enter");
+    for (const page of [host, guest]) {
+      await expect(
+        page.getByRole("button", { name: "Ready for round", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Round results", exact: true }),
+      ).toHaveCount(0);
+      await page
+        .getByRole("button", { name: "Ready for round", exact: true })
+        .click();
+    }
+    await host
+      .getByRole("button", { name: "Start round", exact: true })
+      .click();
+    await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00", {
+      timeout: 15000,
+    });
+    const second = await read(guest);
+    expect(second.roundId).not.toBe(opening.roundId);
+    expect(second.portfolio.holdings.FERN).toBe(0);
+    replayOldResult();
+    await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00");
+    expect(await historical(host)).toEqual(firstHostResult);
+    expect(await historical(guest)).toEqual(firstGuestResult);
   } finally {
     await hostContext.close();
     await guestContext.close();

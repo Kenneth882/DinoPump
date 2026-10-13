@@ -28,6 +28,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       heartbeatAt?: number;
       roundId?: string | undefined;
       roundSequence?: number | undefined;
+      terminalRoundId?: string | undefined;
     }
   >();
   let tail: Promise<unknown> = Promise.resolve();
@@ -78,6 +79,14 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         });
         member.heartbeatAt = snapshot.serverTime;
       }
+      if (
+        snapshot.terminal &&
+        member.terminalRoundId !== snapshot.terminal.roundId
+      ) {
+        socket.emit("round:ended", snapshot.terminal);
+        member.terminalRoundId = snapshot.terminal.roundId;
+      }
+      if (!snapshot.terminal) member.terminalRoundId = undefined;
       member.roundId = snapshot.round?.roundId;
       member.roundSequence = snapshot.round?.sequence;
       if (snapshot.sequence !== member.sequence) {
@@ -182,6 +191,18 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         const member = members.get(socket);
         if (!member) throw new LobbyError("FORBIDDEN");
         return options.store.start(member.secret, member.code, payload);
+      }).then(
+        (outcome) => {
+          if (typeof ack === "function") ack(outcome);
+        },
+        (error: unknown) => commandError(payload, ack, error),
+      );
+    });
+    socket.on("room:return-to-lobby", (payload: unknown, ack: unknown) => {
+      void execute(async () => {
+        const member = members.get(socket);
+        if (!member) throw new LobbyError("FORBIDDEN");
+        return options.store.returnToLobby(member.secret, member.code, payload);
       }).then(
         (outcome) => {
           if (typeof ack === "function") ack(outcome);

@@ -1,3 +1,4 @@
+import { verifyFinalResult, RoundIntegrityError } from "./results.js";
 import { publicMarketView } from "./market-view.js";
 import { orderOutcome } from "./orders.js";
 import { randomUUID } from "node:crypto";
@@ -99,129 +100,144 @@ export async function readOpenedRound(
   );
   const row = result.rows[0];
   if (!row) return null;
-  const round = frozenRoundSchema.parse(row.baseline);
-  const opened = startEngineRound(round);
-  if (!opened.ok) throw new Error("Invalid opening");
-  let state = opened.state;
-  const states = new Map<number, EngineState>([[state.sequence, state]]);
-  const expectedTrades: unknown[] = [];
-  let view = publicMarketView(state, opened.batch);
-  const batches = row.batches as EngineBatch[];
-  if (!isDeepStrictEqual(batches[0], opened.batch))
-    throw new Error("Opening history disagrees");
-  for (const [index, batch] of batches.entries()) {
-    if (index) {
-      const reduced = reduceEngineBatch(state, batch);
-      if (!reduced.ok) throw new Error("Round history failed replay");
-      state = reduced.state;
-      states.set(state.sequence, state);
-      view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
+  try {
+    const round = frozenRoundSchema.parse(row.baseline);
+    const opened = startEngineRound(round);
+    if (!opened.ok) throw new Error("Invalid opening");
+    let state = opened.state;
+    const states = new Map<number, EngineState>([[state.sequence, state]]);
+    const expectedTrades: unknown[] = [];
+    let view = publicMarketView(state, opened.batch);
+    const batches = row.batches as EngineBatch[];
+    if (!isDeepStrictEqual(batches[0], opened.batch))
+      throw new Error("Opening history disagrees");
+    for (const [index, batch] of batches.entries()) {
+      if (index) {
+        const reduced = reduceEngineBatch(state, batch);
+        if (!reduced.ok) throw new Error("Round history failed replay");
+        state = reduced.state;
+        states.set(state.sequence, state);
+        view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
+      }
+      if (row.views[index] && !isDeepStrictEqual(row.views[index], view))
+        throw new Error("Public view disagrees with history");
+      if (batch.command.type === "SubmitOrder") {
+        const owner = batch.command.order.playerId;
+        for (const event of batch.events)
+          if (event.type === "TradeExecuted")
+            expectedTrades.push({
+              sequence: event.sequence,
+              playerId: owner,
+              requestId: batch.command.order.requestId,
+              fill: event.payload,
+            });
+      }
     }
-    if (row.views[index] && !isDeepStrictEqual(row.views[index], view))
-      throw new Error("Public view disagrees with history");
-    if (batch.command.type === "SubmitOrder") {
-      const owner = batch.command.order.playerId;
-      for (const event of batch.events)
-        if (event.type === "TradeExecuted")
-          expectedTrades.push({
-            sequence: event.sequence,
-            playerId: owner,
-            requestId: batch.command.order.requestId,
-            fill: event.payload,
-          });
-    }
-  }
-  const replayed = { state };
-  if (!isDeepStrictEqual(row.trades ?? [], expectedTrades))
-    throw new Error("Trade records disagree with history");
-  const orders = row.orders ?? [];
-  const identities = new Set<string>();
-  for (const record of orders) {
-    const request = orderSubmitSchema.parse(record.request);
-    const outcome = orderResultSchema.parse(record.outcome);
-    const anchor = states.get(Number(record.sequence));
-    if (!anchor || request.roundId !== roundId)
-      throw new Error("Invalid order anchor");
-    const receipt =
-      anchor.receipts.find(
-        (r) =>
-          r.command.playerId === record.playerId &&
-          r.command.requestId === request.requestId,
-      ) ?? null;
-    if (receipt) {
-      const originalBatch = batches.find(
-        (b) =>
-          b.command.type === "SubmitOrder" &&
-          b.command.order.playerId === record.playerId &&
-          b.command.order.requestId === request.requestId,
-      );
+    const replayed = { state };
+    if (!isDeepStrictEqual(row.trades ?? [], expectedTrades))
+      throw new Error("Trade records disagree with history");
+    const orders = row.orders ?? [];
+    const identities = new Set<string>();
+    for (const record of orders) {
+      const request = orderSubmitSchema.parse(record.request);
+      const outcome = orderResultSchema.parse(record.outcome);
+      const anchor = states.get(Number(record.sequence));
+      if (!anchor || request.roundId !== roundId)
+        throw new Error("Invalid order anchor");
+      const receipt =
+        anchor.receipts.find(
+          (r) =>
+            r.command.playerId === record.playerId &&
+            r.command.requestId === request.requestId,
+        ) ?? null;
+      if (receipt) {
+        const originalBatch = batches.find(
+          (b) =>
+            b.command.type === "SubmitOrder" &&
+            b.command.order.playerId === record.playerId &&
+            b.command.order.requestId === request.requestId,
+        );
+        if (
+          !originalBatch ||
+          originalBatch.command.atMs !== Number(record.atMs) ||
+          originalBatch.events.at(-1)?.sequence !== Number(record.sequence) ||
+          !isDeepStrictEqual(
+            orderSubmitSchema.parse({
+              roundId: receipt.command.roundId,
+              requestId: receipt.command.requestId,
+              symbol: receipt.command.symbol,
+              side: receipt.command.side,
+              quantity: receipt.command.quantity,
+              protectionPriceCents: receipt.command.protectionPriceCents,
+            }),
+            request,
+          )
+        )
+          throw new Error("Order identity disagrees with history");
+      } else if (
+        Number(record.atMs) < round.closesAtMs ||
+        outcome.rejectionCode !== "MARKET_CLOSED"
+      )
+        throw new Error("Order has no committed receipt");
       if (
-        !originalBatch ||
-        originalBatch.command.atMs !== Number(record.atMs) ||
-        originalBatch.events.at(-1)?.sequence !== Number(record.sequence) ||
         !isDeepStrictEqual(
-          orderSubmitSchema.parse({
-            roundId: receipt.command.roundId,
-            requestId: receipt.command.requestId,
-            symbol: receipt.command.symbol,
-            side: receipt.command.side,
-            quantity: receipt.command.quantity,
-            protectionPriceCents: receipt.command.protectionPriceCents,
-          }),
-          request,
+          outcome,
+          orderOutcome(anchor, request, record.playerId, receipt),
         )
       )
-        throw new Error("Order identity disagrees with history");
-    } else if (
-      Number(record.atMs) < round.closesAtMs ||
-      outcome.rejectionCode !== "MARKET_CLOSED"
-    )
-      throw new Error("Order has no committed receipt");
+        throw new Error("Order result disagrees with history");
+      identities.add(`${record.playerId}:${request.requestId}`);
+    }
     if (
-      !isDeepStrictEqual(
-        outcome,
-        orderOutcome(anchor, request, record.playerId, receipt),
+      state.receipts.some(
+        (r) => !identities.has(`${r.command.playerId}:${r.command.requestId}`),
       )
     )
-      throw new Error("Order result disagrees with history");
-    identities.add(`${record.playerId}:${request.requestId}`);
-  }
-  if (
-    state.receipts.some(
-      (r) => !identities.has(`${r.command.playerId}:${r.command.requestId}`),
-    )
-  )
-    throw new Error("Missing durable order");
-  const projection = engineStateSchema.parse(row.projection);
-  // Stored textual causes preserve both UUID opening and scheduled logical identities.
-  const facts = (row.batches as { events: unknown[] }[]).flatMap(
-    (batch) => batch.events,
-  );
-  if (
-    !isDeepStrictEqual(row.initialized, round) ||
-    !isDeepStrictEqual(row.events, facts) ||
-    !isDeepStrictEqual(projection, replayed.state) ||
-    Number(row.projection_sequence) !== replayed.state.sequence
-  ) {
-    throw new Error("Round projection or event history disagrees with replay");
-  }
-  const scheduled = (row.batches as EngineBatch[]).filter(
-    (batch) => batch.command.type === "ApplyScheduledEvent",
-  );
-  const newsRows: { item: unknown; input: unknown; sourceSequence: number }[] =
-    row.news ?? [];
-  if (newsRows.length !== scheduled.length)
-    throw new Error("Missing scheduled news");
-  scheduled.forEach((batch, index) => {
-    const newsRow = newsRows[index]!;
-    const item = newsItemSchema.parse(newsRow.item);
-    const expected = newsFromBatch(batch, item.sourceEventId);
+      throw new Error("Missing durable order");
+    const projection = engineStateSchema.parse(row.projection);
+    // Stored textual causes preserve both UUID opening and scheduled logical identities.
+    const facts = (row.batches as { events: unknown[] }[]).flatMap(
+      (batch) => batch.events,
+    );
     if (
-      !isDeepStrictEqual(item, expected) ||
-      Number(newsRow.sourceSequence) !== item.sequence ||
-      !isDeepStrictEqual(newsRow.input, narrationInput(expected))
-    )
-      throw new Error("Scheduled news or job disagrees with history");
-  });
-  return replayed.state;
+      !isDeepStrictEqual(row.initialized, round) ||
+      !isDeepStrictEqual(row.events, facts) ||
+      !isDeepStrictEqual(projection, replayed.state) ||
+      Number(row.projection_sequence) !== replayed.state.sequence
+    ) {
+      throw new Error(
+        "Round projection or event history disagrees with replay",
+      );
+    }
+    const scheduled = (row.batches as EngineBatch[]).filter(
+      (batch) => batch.command.type === "ApplyScheduledEvent",
+    );
+    const newsRows: {
+      item: unknown;
+      input: unknown;
+      sourceSequence: number;
+    }[] = row.news ?? [];
+    if (newsRows.length !== scheduled.length)
+      throw new Error("Missing scheduled news");
+    scheduled.forEach((batch, index) => {
+      const newsRow = newsRows[index]!;
+      const item = newsItemSchema.parse(newsRow.item);
+      const expected = newsFromBatch(batch, item.sourceEventId);
+      if (
+        !isDeepStrictEqual(item, expected) ||
+        Number(newsRow.sourceSequence) !== item.sequence ||
+        !isDeepStrictEqual(newsRow.input, narrationInput(expected))
+      )
+        throw new Error("Scheduled news or job disagrees with history");
+    });
+    await verifyFinalResult(db, replayed.state);
+    return replayed.state;
+  } catch (error) {
+    // PostgreSQL failures have a code; unavailable storage is not corrupt history.
+    if (error instanceof Error && "code" in error) throw error;
+    throw new RoundIntegrityError(
+      roundId,
+      error instanceof Error ? error.message : "Unverifiable history",
+    );
+  }
 }

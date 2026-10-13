@@ -4,7 +4,7 @@ Ticket [#2](https://github.com/Kenneth882/DinoPump/issues/2) implements the pers
 
 ## Migrations
 
-Start Docker Desktop, install the pinned workspace dependencies, and copy `.env.example` to `.env` if needed. From the repository root:
+Start Docker Desktop, install the pinned workspace dependencies, and copy `.env.example` to `.env` if needed. Before first startup, replace the password placeholders in `POSTGRES_PASSWORD` and `DATABASE_URL` with the same unique password, URL-encoding reserved characters in the connection URL. Restrict the local file with `chmod 600 .env`; keep real credentials out of the committed example. For an existing database, coordinate any credential change with the database itself. From the repository root:
 
 ```sh
 pnpm db:up
@@ -91,12 +91,16 @@ same owned queue and publishes only after the returned promise commits. Calling 
 on an unrelated connection or separating matching from serialization is unsafe.
 
 `LobbyStore.open` replays and catches up missed pre-close effects before returning.
-The service remains unready after the closing deadline because settlement is
-still ticket #11. General projection rebuilding and trade crash recovery remain
+The service catches up and settles after the closing deadline; verified terminal
+rounds remain ready. General projection rebuilding and trade crash recovery remain
 #13. Late catch-up never moves the persisted round deadlines.
 
 ## Durable orders and fills
 
-Migration 5 adds immutable `orders` and `trades`, unique round/player/request identities, event/owner foreign keys, and transactional `round_batches.public_view`. Orders store canonical content and original private results; fills retain their source event sequence and order identity. Replay checks these derived records and public views against deterministic history. Original outcomes survive later trades, close, and restart. Closed attempts are zero-fill results anchored to existing committed state until #11 supplies settlement. Durable identity storage is never limited to the 20 outcomes shown in an owner snapshot.
+Migration 5 adds immutable `orders` and `trades`, unique round/player/request identities, event/owner foreign keys, and transactional `round_batches.public_view`. Orders store canonical content and original private results; fills retain their source event sequence and order identity. Replay checks these derived records and public views against deterministic history. Original outcomes survive later trades, close, and restart. Closed attempts are zero-fill results anchored to committed state; ticket #11 settles first for new deadline attempts while preserving historical anchors. Durable identity storage is never limited to the 20 outcomes shown in an owner snapshot.
 
 The owned cache stores only committed verified engine states, checks their projection on reads, and invalidates on transaction failure or ownership/database loss. Startup and readiness verify full history, outcome/fill linkage, news/jobs, and projections. Materialized public views avoid replay per recipient; pre-migration history can still be reconstructed. This does not add projection repair or full crash settlement (#13).
+
+## Immutable results and integrity aborts
+
+Migration 6 adds immutable settlement-linked `round_results` and independent `round_aborts` for safe terminal integrity failures. Result rows freeze marks/ranks, display names, event facts, and all final private portfolios; participant APIs expose only the owner's portfolio. Replay verifies results against settlement history. Host reset clears the active pointer/readiness and restores lobby deadlines while retaining old results/orders/events. See [ticket #11 evidence](validation/ticket-11-results.md). Invalid history is retained; projection rebuilding remains #13.

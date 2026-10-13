@@ -213,7 +213,7 @@ it("makes closing rejections durable without rolling back due work or losing ori
   await store.close();
   store = await LobbyStore.open(database.pool, () => now);
   expect(await store.submitOrder(host.secret, code, at)).toEqual(closed);
-  expect(await store.isReady()).toBe(false);
+  expect(await store.isReady()).toBe(true);
 });
 it("uses a ten-token burst and exact five-per-second refill for a player across concurrent requests, including retries", async () => {
   const { host, code, round } = await openRound();

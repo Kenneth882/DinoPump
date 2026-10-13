@@ -7,3 +7,4 @@ export * from "./round-engine.js";
 export * from "./lobby.js";
 export * from "./news.js";
 export * from "./trading.js";
+export * from "./results.js";
