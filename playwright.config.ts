@@ -8,8 +8,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command:
-        "pnpm --filter @dinopump/game-server exec node --import tsx src/index.ts",
+      command: "pnpm exec node --import tsx tests/helpers/e2e-game-server.ts",
       url: "http://127.0.0.1:3101/health",
       env: { GAME_SERVER_PORT: "3101", WEB_ORIGIN: "http://127.0.0.1:3100" },
       reuseExistingServer: false,

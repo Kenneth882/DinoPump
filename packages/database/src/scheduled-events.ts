@@ -1,3 +1,4 @@
+import { RoundIntegrityError } from "./results.js";
 import type { PoolClient } from "pg";
 import { processEngineCommand } from "@dinopump/engine";
 import type { EngineState } from "@dinopump/contracts";
@@ -21,7 +22,10 @@ export async function applyDueEvents(
       scheduledEventId: next.scheduledEventId,
     });
     if (!result.ok || !result.batch)
-      throw new Error("Due event could not be applied");
+      throw new RoundIntegrityError(
+        state.round.roundId,
+        "Due event could not be applied",
+      );
     const ids = await persistEngineBatch(client, result.state, result.batch);
     const source = result.batch.events[0]!;
     const news = newsFromBatch(result.batch, ids.get(source.sequence)!);

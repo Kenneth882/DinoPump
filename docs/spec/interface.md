@@ -22,6 +22,8 @@ During the scheduled-events implementation stage (ticket #9), the availability n
 
 During the durable-trading stage (ticket #10), the availability notice reads “Ready your herd, then buy and sell protected trades against the game liquidity bot.” The round view adds a minimal protected buy/sell ticket, executed trades, and provisional public portfolio totals. Closing results and the full terminal remain later slices.
 
+During the closing/results stage (ticket #11), the availability notice reads “Ready your herd, then buy and sell protected trades against the game liquidity bot.” Closing adds immutable shared ranks, winner/tied winners, final value/profit/return, owned remaining cash/holdings, and a compact committed-event timeline. The host can return to the lobby and start a fresh round. An aborted round shows a safe explanation with no winner. The full terminal remains a later slice.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby

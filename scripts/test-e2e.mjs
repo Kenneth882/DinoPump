@@ -1,4 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -15,6 +17,9 @@ const compose = ["compose", "-f", "compose.test.yaml"];
 const connectionString =
   "postgresql://dinopump_test:synthetic_test_only@127.0.0.1:55433/dinopump_test";
 const schema = `e2e_${randomUUID().replaceAll("-", "")}`;
+const clockDirectory = await mkdtemp(join(tmpdir(), "dinopump-e2e-clock-"));
+const clockPath = join(clockDirectory, "offset");
+await writeFile(clockPath, "0");
 try {
   run("docker", [...compose, "up", "-d", "--wait"]);
   const admin = new Pool({ connectionString });
@@ -34,9 +39,11 @@ try {
   run("pnpm", ["exec", "playwright", "test", ...process.argv.slice(2)], {
     ...process.env,
     DATABASE_URL: url.href,
+    DINOPUMP_E2E_CLOCK: clockPath,
     WEB_ORIGIN: "http://127.0.0.1:3100",
   });
 } finally {
   await writeFile(nextEnvPath, nextEnv);
+  await rm(clockDirectory, { recursive: true, force: true });
   run("docker", [...compose, "down"]);
 }

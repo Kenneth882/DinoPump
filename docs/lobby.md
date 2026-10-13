@@ -1,6 +1,6 @@
 # Guest sessions and shared lobby
 
-Ticket [#7](https://github.com/Kenneth882/DinoPump/issues/7) implements the lobby portion of [round lifecycle §4](spec/round-lifecycle.md), [interface §6](spec/interface.md), [persistence §8](spec/persistence.md), [API §9](spec/api-and-recovery.md), and [identity/access controls §11](spec/operations.md). Ticket [#8](https://github.com/Kenneth882/DinoPump/issues/8) adds readiness, countdown, and atomic round opening. Trading, scheduled effects, and results remain later tickets. The existing introduction and unavailable/retry behavior remain available.
+Ticket [#7](https://github.com/Kenneth882/DinoPump/issues/7) implements the lobby portion of [round lifecycle §4](spec/round-lifecycle.md), [interface §6](spec/interface.md), [persistence §8](spec/persistence.md), [API §9](spec/api-and-recovery.md), and [identity/access controls §11](spec/operations.md). Ticket [#8](https://github.com/Kenneth882/DinoPump/issues/8) adds readiness, countdown, and atomic round opening. Tickets #9–11 add scheduled effects, trading, closing/results, and host return to lobby. The existing introduction and unavailable/retry behavior remain available.
 
 ## Run locally
 
@@ -90,7 +90,7 @@ otherwise it returns 503. Ownership is checked before work and before commit,
 including when a live connection loses its advisory lock. Database/ownership
 loss fails closed until process restart. Readiness is false while an event is overdue and returns after successful catch-up.
 Startup drains missed pre-close events. Readiness remains false at/after the closing
-deadline until ticket #11 implements settlement; this is not yet a playable full round.
+deadline until due effects and settlement commit; verified terminal rounds remain ready.
 
 ## Validation boundaries
 
@@ -138,6 +138,12 @@ for executed checks and remaining acceptance boundaries.
 
 `order:submit` accepts the strict public request and derives identity from the session. The player-wide five/second token budget has burst ten, including retries across tabs. Matching and due effects use the owned serialized transaction. New attempts persist an immutable outcome and source-linked fills; retries retrieve the original private balances and sequence. Changed content under the same identity fails.
 
-The [trading wire contract](spec/api-and-recovery.md#durable-trading-delivery-ticket-10-stage) defines results, errors, public executions/totals, frozen ticket rules, recent owner outcomes, and connection heartbeats. Reconnect obtains an authoritative snapshot before resolving or retrying a pending order. Quotes can age while the connection remains healthy; fresh heartbeats are separate evidence. Old results confirm only their original request and cannot replace newer private resources. At close the ticket disables; settlement/results remain #11.
+The [trading wire contract](spec/api-and-recovery.md#durable-trading-delivery-ticket-10-stage) defines results, errors, public executions/totals, frozen ticket rules, recent owner outcomes, and connection heartbeats. Reconnect obtains an authoritative snapshot before resolving or retrying a pending order. Quotes can age while the connection remains healthy; fresh heartbeats are separate evidence. Old results confirm only their original request and cannot replace newer private resources. At close the ticket disables and committed results replace the market view.
 
 The keyboard-accessible ticket uses whole units, conservative integer protection rounding from the displayed best quote, nonguaranteed estimates, clearly labeled bot fills, and announced results. Tests cover two browsers at 360px, partial/zero/rejected/filled outcomes, postcommit delivery loss, unchanged pending identity, and preserved Daily Roar news. See [ticket #10 evidence](validation/ticket-10-trading.md) for the actual checks and limitations.
+
+## Closing, results, and the next round
+
+The owned scheduler and commands apply remaining pre-close effects and settle once at the frozen deadline. The service stays ready for verified terminal rounds. Authorized results remain available by original round ID, with shared frozen ranks and only the viewer's final cash/holdings. After-commit `round:ended` and terminal snapshots recover missed delivery. Integrity failures preserve evidence and record a safe abort without a winner; database/ownership loss stops writes.
+
+The acknowledged host `room:return-to-lobby` command resets readiness and restores lobby deadlines without deleting historical rounds. Replayed reset identities return their original outcome and cannot reset a later round. A new start freezes fresh identity/seed/resources. Results and keyboard controls remain usable at 360px. See the [closing wire contract](spec/api-and-recovery.md#closing-results-and-lobby-reset-ticket-11-stage) and [ticket #11 evidence](validation/ticket-11-results.md). Full client reconciliation, general projection repair, and process-crash verification remain #12/#13.

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   emptyCommandSchema,
+  roundEndedSchema,
   sessionResponseSchema,
   lobbyErrorMessages,
   type LobbyErrorCode,
@@ -100,6 +101,18 @@ export async function lobbyHttp(
       response.end(JSON.stringify(room));
       return;
     }
+    const results = path?.match(/^\/api\/rounds\/([^/]+)\/results$/);
+    if (results && request.method === "GET") {
+      response.setHeader("Cache-Control", "no-store");
+      response.end(
+        JSON.stringify(
+          roundEndedSchema.parse(
+            await options.store.results(secret, results[1]!),
+          ),
+        ),
+      );
+      return;
+    }
     const match = path?.match(/^\/api\/rooms\/([^/]+)\/(join|snapshot)$/);
     if (match) {
       const code = match[1]!;
@@ -121,6 +134,7 @@ export async function lobbyHttp(
     response.statusCode = 404;
     response.end(JSON.stringify({ error: "NOT_FOUND" }));
   } catch (error) {
+    response.setHeader("Cache-Control", "no-store");
     const body = safeError(error);
     response.statusCode = statuses[body.error];
     response.end(JSON.stringify(body));
