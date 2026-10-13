@@ -4,7 +4,7 @@ Ticket [#2](https://github.com/Kenneth882/DinoPump/issues/2) implements the pers
 
 ## Migrations
 
-Start Docker Desktop, install the pinned workspace dependencies, and copy `.env.example` to `.env` if needed. From the repository root:
+Start Docker Desktop, install the pinned workspace dependencies, and copy `.env.example` to `.env` if needed. Before first startup, replace the password placeholders in `POSTGRES_PASSWORD` and `DATABASE_URL` with the same unique password, URL-encoding reserved characters in the connection URL. Restrict the local file with `chmod 600 .env`; keep real credentials out of the committed example. For an existing database, coordinate any credential change with the database itself. From the repository root:
 
 ```sh
 pnpm db:up
