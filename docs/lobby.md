@@ -146,4 +146,34 @@ The keyboard-accessible ticket uses whole units, conservative integer protection
 
 The owned scheduler and commands apply remaining pre-close effects and settle once at the frozen deadline. The service stays ready for verified terminal rounds. Authorized results remain available by original round ID, with shared frozen ranks and only the viewer's final cash/holdings. After-commit `round:ended` and terminal snapshots recover missed delivery. Integrity failures preserve evidence and record a safe abort without a winner; database/ownership loss stops writes.
 
-The acknowledged host `room:return-to-lobby` command resets readiness and restores lobby deadlines without deleting historical rounds. Replayed reset identities return their original outcome and cannot reset a later round. A new start freezes fresh identity/seed/resources. Results and keyboard controls remain usable at 360px. See the [closing wire contract](spec/api-and-recovery.md#closing-results-and-lobby-reset-ticket-11-stage) and [ticket #11 evidence](validation/ticket-11-results.md). Full client reconciliation, general projection repair, and process-crash verification remain #12/#13.
+The acknowledged host `room:return-to-lobby` command resets readiness and restores lobby deadlines without deleting historical rounds. Replayed reset identities return their original outcome and cannot reset a later round. A new start freezes fresh identity/seed/resources. Results and keyboard controls remain usable at 360px. See the [closing wire contract](spec/api-and-recovery.md#closing-results-and-lobby-reset-ticket-11-stage) and [ticket #11 evidence](validation/ticket-11-results.md). Ticket #12 extends client reconciliation below; general projection repair and process-crash verification remain #13.
+
+## Client resynchronization
+
+The browser sends `room:resync { roundId, lastSequence, requestId }` after
+reconnect, freshness loss, missing or reordered batches, or uncertain order
+delivery. Both a validated snapshot event and a correlated snapshot acknowledgement
+can recover the screen. A snapshot captured before newer observed facts cannot
+enable trading. The owned publication queue delivers snapshots before subsequent
+complete durable batches; every read checks authorization and private visibility.
+
+Private trade receipts wait for complete public coverage. Recent snapshot outcomes
+resolve pending trades; older requests retry their frozen original payload.
+Recorded owner receipts remain readable after lobby reset, without changing the
+new round or granting historical access to new members. See the
+[recovery contract](spec/api-and-recovery.md#client-resynchronization-ticket-12-stage).
+General projection repair and full process-crash recovery remain ticket #13.
+See [ticket #12 evidence](validation/ticket-12-recovery.md) for the executed
+checks and their acceptance boundaries.
+
+When another checkout is using the default test container or port, give this
+checkout a separate Compose project and loopback port:
+
+```sh
+DINOPUMP_TEST_PROJECT=dinopump-ticket12 DINOPUMP_TEST_PORT=55434 pnpm db:verify
+DINOPUMP_TEST_PROJECT=dinopump-ticket12 DINOPUMP_TEST_PORT=55434 pnpm test:e2e
+```
+
+The defaults remain `dinopump-integration` and 55433. Test databases still use
+synthetic credentials, random schemas and temporary container storage. Run these
+harnesses sequentially; browser harnesses also require exclusive ports 3100/3101.

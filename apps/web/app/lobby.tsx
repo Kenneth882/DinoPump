@@ -16,6 +16,7 @@ import {
   orderResultSchema,
   tradingCommandErrorSchema,
   roomHeartbeatSchema,
+  roomResyncOutcomeSchema,
   type OrderSubmit,
   type OrderResult,
   lobbyErrorMessages,
@@ -158,25 +159,74 @@ export function Lobby() {
     let active = true;
     let synchronized = false;
     let visible: LobbySnapshot | null = null;
-    let resyncPending = false;
+    let resyncRequestId: string | null = null;
+    let connectionEpoch = 0;
+    let observedSequence = 0;
+    let transitionRoundId: string | null | undefined;
+    let transitionSequence = 0;
+    let requireResyncAck = false;
+    let deferredOrder: OrderResult | null = null;
+    let reconnectDelay = 500;
+    let reconnectAt = 0;
     let freshAt = performance.now();
     function requestSnapshot() {
       synchronized = false;
-      setConnection("Synchronizing…");
-      if (resyncPending || !socket.connected) return;
-      resyncPending = true;
+      setConnection(socket.connected ? "Synchronizing…" : "Reconnecting…");
+      if (resyncRequestId || !socket.connected) return;
+      const requestId = crypto.randomUUID();
+      const epoch = connectionEpoch;
+      resyncRequestId = requestId;
       void socket
         .timeout(2500)
         .emitWithAck("room:resync", {
-          code: activeCode,
-          requestId: crypto.randomUUID(),
+          roundId:
+            visible?.round?.roundId ??
+            visible?.countdown?.roundId ??
+            visible?.terminal?.roundId ??
+            null,
+          lastSequence: visible?.round?.sequence ?? 0,
+          requestId,
+        })
+        .then((raw: unknown) => {
+          if (
+            !active ||
+            epoch !== connectionEpoch ||
+            resyncRequestId !== requestId
+          )
+            return;
+          const outcome = roomResyncOutcomeSchema.safeParse(raw);
+          if (outcome.success && outcome.data.requestId === requestId)
+            receiveSnapshot(outcome.data.snapshot, true);
+          else {
+            const failure = lobbyCommandErrorSchema.safeParse(raw);
+            if (failure.success && failure.data.requestId === requestId) {
+              report(failure.data);
+              if (
+                ["FORBIDDEN", "UNAUTHENTICATED", "ROOM_NOT_FOUND"].includes(
+                  failure.data.error,
+                )
+              )
+                clearLobby();
+            }
+          }
         })
         .catch(() => {
           /* The retry timer requests another authoritative snapshot. */
         })
         .finally(() => {
-          resyncPending = false;
+          if (resyncRequestId === requestId) resyncRequestId = null;
         });
+    }
+    function requestAfterTransition(roundId: string | null, sequence = 0) {
+      if (transitionRoundId !== roundId) {
+        // An in-flight capture predates this lifecycle evidence. Only a newly
+        // correlated read can prove which round (or lobby) is current now.
+        transitionRoundId = roundId;
+        transitionSequence = sequence;
+        resyncRequestId = null;
+        requireResyncAck = true;
+      } else transitionSequence = Math.max(transitionSequence, sequence);
+      requestSnapshot();
     }
     function report(data: unknown) {
       const parsed = lobbyCommandErrorSchema.safeParse(data);
@@ -194,12 +244,16 @@ export function Lobby() {
         if (parsed.data.error === "UNAUTHENTICATED") setPlayer(null);
       }
     }
-    socket.on("connect", () => setConnection("Synchronizing…"));
+    socket.on("connect", requestSnapshot);
     socket.on("disconnect", () => {
+      connectionEpoch++;
+      resyncRequestId = null;
       synchronized = false;
+      reconnectAt = performance.now() + reconnectDelay;
       setConnection("Reconnecting…");
     });
     socket.on("connect_error", (error: Error & { data?: unknown }) => {
+      reconnectAt = performance.now() + reconnectDelay;
       setConnection("Reconnecting…");
       if (error.data) report(error.data);
     });
@@ -235,16 +289,17 @@ export function Lobby() {
     }
     function receiveOrder(raw: unknown) {
       const parsed = orderResultSchema.safeParse(raw);
-      if (
-        !parsed.success ||
-        !visible?.round ||
-        parsed.data.roundId !== visible.round.roundId
-      ) {
-        if (!parsed.success) requestSnapshot();
+      if (!parsed.success) {
+        requestSnapshot();
         return;
       }
       const result = parsed.data,
         current = trade.current;
+      const matchesPending =
+        current && result.requestId === current.payload.requestId;
+      if (result.roundId !== visible?.round?.roundId && !matchesPending) return;
+      if (result.roundId === visible?.round?.roundId)
+        observedSequence = Math.max(observedSequence, result.sequence);
       if (current && result.requestId === current.payload.requestId) {
         const request = current.payload;
         if (
@@ -257,10 +312,23 @@ export function Lobby() {
           requestSnapshot();
           return;
         }
+      }
+      // Keep a validated pending receipt until recovery completes, including
+      // old-round receipts absent from the current snapshot's recent window.
+      if (
+        !synchronized ||
+        (result.roundId === visible?.round?.roundId &&
+          result.sequence > visible.round.sequence)
+      ) {
+        if (matchesPending) deferredOrder = result;
+        requestSnapshot();
+        return;
+      }
+      if (matchesPending) {
         trade.current = null;
         setTradePending(false);
         setTradeMessage("");
-        setTradeResult(result);
+        if (result.roundId === visible?.round?.roundId) setTradeResult(result);
       } else if (!current) {
         setTradeResult((previous) =>
           !previous ||
@@ -271,6 +339,7 @@ export function Lobby() {
         );
       }
       // A retried original receipt is evidence of that order, never a newer ledger.
+      if (result.roundId !== visible?.round?.roundId || !visible?.round) return;
       if (result.sequence > visible.round.portfolioSequence) {
         visible = {
           ...visible,
@@ -293,12 +362,17 @@ export function Lobby() {
       }
       const result = parsed.data;
       if (result.roundId !== visible?.round?.roundId) return;
+      if (result.status === "FINISHED")
+        observedSequence = Math.max(
+          observedSequence,
+          result.settlementSequence,
+        );
       // Settlement batches precede terminal delivery; otherwise resynchronize.
       if (
         result.status === "FINISHED" &&
         result.settlementSequence > visible.round.sequence
       ) {
-        requestSnapshot();
+        requestAfterTransition(result.roundId, result.settlementSequence);
         return;
       }
       visible = {
@@ -318,6 +392,10 @@ export function Lobby() {
               },
       };
       setSnapshot(visible);
+      requestAfterTransition(
+        result.roundId,
+        result.status === "FINISHED" ? result.settlementSequence : 0,
+      );
     });
     function sendTrade() {
       const current = trade.current;
@@ -359,11 +437,14 @@ export function Lobby() {
     socket.on("room:heartbeat", (raw: unknown) => {
       const parsed = roomHeartbeatSchema.safeParse(raw);
       if (!parsed.success) return;
+      if (parsed.data.roundId === visible?.round?.roundId)
+        observedSequence = Math.max(observedSequence, parsed.data.sequence);
       freshAt = performance.now();
-      if (
-        parsed.data.roundId !== (visible?.round?.roundId ?? null) ||
-        parsed.data.sequence > (visible?.round?.sequence ?? 0)
-      ) {
+      if (parsed.data.roundId !== (visible?.round?.roundId ?? null)) {
+        requestAfterTransition(parsed.data.roundId, parsed.data.sequence);
+        return;
+      }
+      if (parsed.data.sequence > (visible?.round?.sequence ?? 0)) {
         requestSnapshot();
         return;
       }
@@ -410,10 +491,30 @@ export function Lobby() {
           setError("Waiting for command confirmation. Retrying…");
         });
     }
-    socket.on("room:snapshot", (data: unknown) => {
+    function receiveSnapshot(data: unknown, fromResync = false) {
+      if (!active || !socket.connected) return;
+      if (requireResyncAck && !fromResync) return;
       const parsed = lobbySnapshotSchema.safeParse(data);
       if (!parsed.success || parsed.data.code !== activeCode) {
-        setConnection("Synchronizing…");
+        requestSnapshot();
+        return;
+      }
+      if (
+        parsed.data.round?.roundId === transitionRoundId &&
+        parsed.data.round &&
+        parsed.data.round.sequence < transitionSequence
+      ) {
+        requestSnapshot();
+        return;
+      }
+      // Facts arriving while a snapshot is in flight bound how fresh its
+      // replacement must be. Never enable an older captured market view.
+      if (
+        visible?.round &&
+        parsed.data.round?.roundId === visible.round.roundId &&
+        parsed.data.round.sequence < observedSequence
+      ) {
+        requestSnapshot();
         return;
       }
       if (
@@ -439,8 +540,8 @@ export function Lobby() {
         (visible.round?.roundId ?? null) !==
           (parsed.data.round?.roundId ?? null)
       ) {
-        trade.current = null;
-        setTradePending(false);
+        // Keep an unresolved original identity through resets; its readback
+        // can confirm the old trade, but cannot change the new round's ledger.
         setTradeResult(null);
         setTradeMessage("");
         if (command.current?.event === "room:return-to-lobby") {
@@ -449,6 +550,7 @@ export function Lobby() {
         }
       }
       visible = parsed.data;
+      observedSequence = visible.round?.sequence ?? 0;
       if (portfolio && visible.round)
         visible = { ...visible, round: { ...visible.round, ...portfolio } };
       freshAt = performance.now();
@@ -459,26 +561,37 @@ export function Lobby() {
       });
       setElapsed(0);
       synchronized = true;
+      requireResyncAck = false;
+      transitionRoundId = undefined;
+      transitionSequence = 0;
+      reconnectDelay = 500;
       setConnection("Connected");
       setError("");
-      const recovered = visible.round?.recentOrders.find(
-        (result) => result.requestId === trade.current?.payload.requestId,
-      );
+      const recovered =
+        visible.round?.recentOrders.find(
+          (result) => result.requestId === trade.current?.payload.requestId,
+        ) ??
+        (deferredOrder?.requestId === trade.current?.payload.requestId
+          ? deferredOrder
+          : null);
+      deferredOrder = null;
       if (recovered) receiveOrder(recovered);
       sendPending();
       sendTrade();
-    });
+    }
+    socket.on("room:snapshot", receiveSnapshot);
     socket.on("market:batch", (data: unknown) => {
       const parsed = marketBatchSchema.safeParse(data);
-      if (
-        !parsed.success ||
-        !visible?.round ||
-        parsed.data.roundId !== visible.round.roundId
-      ) {
+      if (!parsed.success) {
         requestSnapshot();
         return;
       }
+      if (!visible?.round || parsed.data.roundId !== visible.round.roundId) {
+        requestAfterTransition(parsed.data.roundId, parsed.data.endSequence);
+        return;
+      }
       const batch = parsed.data;
+      observedSequence = Math.max(observedSequence, batch.endSequence);
       if (batch.endSequence <= visible.round.sequence) return;
       if (!synchronized || batch.startSequence !== visible.round.sequence + 1) {
         requestSnapshot();
@@ -518,12 +631,19 @@ export function Lobby() {
       )
         requestSnapshot();
     });
-    // Server-side disconnects (for example database loss) also need backoff.
-    const reconnect = setInterval(() => {
-      if (!socket.connected && !socket.active) socket.connect();
-    }, 5000);
     const retry = setInterval(() => {
-      if (socket.connected && performance.now() - freshAt > 3000)
+      // Socket.IO backs off transport failures. Explicit server disconnects
+      // also need bounded backoff because Socket.IO leaves them inactive.
+      if (
+        !socket.connected &&
+        !socket.active &&
+        performance.now() >= reconnectAt
+      ) {
+        socket.connect();
+        reconnectDelay = Math.min(reconnectDelay * 2, 5000);
+        reconnectAt = performance.now() + reconnectDelay;
+      }
+      if (socket.connected && performance.now() - freshAt >= 3000)
         requestSnapshot();
       if (socket.connected && !synchronized) requestSnapshot();
       sendPending();
@@ -531,7 +651,6 @@ export function Lobby() {
     }, 500);
     return () => {
       active = false;
-      clearInterval(reconnect);
       clearInterval(retry);
       if (command.current) command.current.sending = false;
       if (trade.current) trade.current.sending = false;

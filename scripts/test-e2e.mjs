@@ -14,8 +14,7 @@ function run(command, args, env = process.env) {
 const nextEnvPath = new URL("../apps/web/next-env.d.ts", import.meta.url);
 const nextEnv = await readFile(nextEnvPath);
 const compose = ["compose", "-f", "compose.test.yaml"];
-const connectionString =
-  "postgresql://dinopump_test:synthetic_test_only@127.0.0.1:55433/dinopump_test";
+const connectionString = `postgresql://dinopump_test:synthetic_test_only@127.0.0.1:${process.env.DINOPUMP_TEST_PORT ?? "55433"}/dinopump_test`;
 const schema = `e2e_${randomUUID().replaceAll("-", "")}`;
 const clockDirectory = await mkdtemp(join(tmpdir(), "dinopump-e2e-clock-"));
 const clockPath = join(clockDirectory, "offset");

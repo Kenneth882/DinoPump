@@ -10,7 +10,7 @@ const clockPath = process.env.DINOPUMP_E2E_CLOCK;
 if (
   !clockPath ||
   databaseUrl.hostname !== "127.0.0.1" ||
-  databaseUrl.port !== "55433" ||
+  databaseUrl.port !== (process.env.DINOPUMP_TEST_PORT ?? "55433") ||
   databaseUrl.pathname !== "/dinopump_test" ||
   !databaseUrl.searchParams.get("options")?.startsWith("-c search_path=e2e_")
 )

@@ -15,8 +15,7 @@ try {
     ["exec", "vitest", "run", "--config", "vitest.database.config.ts"],
     {
       ...process.env,
-      TEST_DATABASE_URL:
-        "postgresql://dinopump_test:synthetic_test_only@127.0.0.1:55433/dinopump_test",
+      TEST_DATABASE_URL: `postgresql://dinopump_test:synthetic_test_only@127.0.0.1:${process.env.DINOPUMP_TEST_PORT ?? "55433"}/dinopump_test`,
     },
   );
 } finally {

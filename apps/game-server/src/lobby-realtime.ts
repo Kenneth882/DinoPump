@@ -3,6 +3,7 @@ import { Server, type Socket } from "socket.io";
 import {
   lobbySubscriptionSchema,
   lobbyResyncSchema,
+  roomResyncSchema,
   roundStartSchema,
   tradingErrorMessages,
   type OrderResult,
@@ -243,11 +244,19 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     });
     socket.on("room:resync", (payload: unknown, ack: unknown) => {
       void serial(async () => {
-        const parsed = lobbyResyncSchema.safeParse(payload);
+        const parsed = roomResyncSchema
+          .or(lobbyResyncSchema)
+          .safeParse(payload);
         const member = members.get(socket);
         if (!parsed.success) throw new LobbyError("INVALID_REQUEST");
-        if (!member || parsed.data.code !== member.code)
+        if (
+          !member ||
+          ("code" in parsed.data && parsed.data.code !== member.code)
+        )
           throw new LobbyError("FORBIDDEN");
+        // The same queue owns subscription, snapshot capture and publication.
+        // Commits after N remain buffered in durable batches and are published
+        // only after this snapshot, starting strictly after its market cursor.
         const snapshot = await options.store.snapshot(
           member.secret,
           member.code,
@@ -257,12 +266,19 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         member.roundSequence = snapshot.round?.sequence;
         socket.emit("room:snapshot", snapshot);
         if (typeof ack === "function")
-          ack({ requestId: parsed.data.requestId, snapshot });
+          ack({
+            ...(parsed.data.requestId
+              ? { requestId: parsed.data.requestId }
+              : {}),
+            snapshot,
+          });
       }).catch((error: unknown) => {
-        const parsed = lobbyResyncSchema.safeParse(payload);
+        const parsed = roundStartSchema.passthrough().safeParse(payload);
         const body = {
           ...safeError(error),
-          ...(parsed.success ? { requestId: parsed.data.requestId } : {}),
+          ...(parsed.success
+            ? { requestId: parsed.data.requestId.toLowerCase() }
+            : {}),
         };
         socket.emit("command:error", body);
         if (typeof ack === "function") ack(body);

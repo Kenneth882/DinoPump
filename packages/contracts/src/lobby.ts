@@ -43,6 +43,12 @@ export const lobbySubscriptionSchema = z
 export const lobbyResyncSchema = lobbySubscriptionSchema
   .extend({ requestId: z.uuid() })
   .strict();
+/** The subscription supplies the room; cursors never grant access to a round. */
+export const roomResyncSchema = z.strictObject({
+  roundId: z.uuid().toLowerCase().nullable(),
+  lastSequence: z.number().int().nonnegative(),
+  requestId: z.uuid().toLowerCase().optional(),
+});
 export const roomReadySchema = z.strictObject({
   ready: z.boolean(),
   requestId: z.uuid(),
@@ -147,6 +153,10 @@ export const lobbyCommandErrorSchema = lobbyErrorSchema
 export type LobbyErrorCode = keyof typeof lobbyErrorMessages;
 export type GuestPlayer = z.infer<typeof playerSchema>;
 export type LobbySnapshot = z.infer<typeof lobbySnapshotSchema>;
+export const roomResyncOutcomeSchema = z.strictObject({
+  requestId: z.uuid().optional(),
+  snapshot: lobbySnapshotSchema,
+});
 export type RoomCommandOutcome = z.infer<typeof roomCommandOutcomeSchema>;
 
 /** One complete committed engine batch, projected to public market facts only. */

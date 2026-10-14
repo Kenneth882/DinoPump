@@ -16,7 +16,7 @@ if (!connectionString)
 const target = new URL(connectionString);
 if (
   target.hostname !== "127.0.0.1" ||
-  target.port !== "55433" ||
+  target.port !== (process.env.DINOPUMP_TEST_PORT ?? "55433") ||
   target.pathname !== "/dinopump_test"
 ) {
   throw new Error("Refusing to test outside the isolated synthetic database");

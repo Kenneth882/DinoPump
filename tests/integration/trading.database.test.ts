@@ -59,6 +59,27 @@ const order = (roundId: string, changes = {}) => ({
   protectionPriceCents: 4100,
   ...changes,
 });
+it("resolves an original receipt outside the recent snapshot window without additional fills (AC-07/10)", async () => {
+  const { host, code, round } = await openRound();
+  const request = order(round.roundId);
+  const original = await store.submitOrder(host.secret, code, request);
+  for (let i = 0; i < 21; i++) {
+    now += 200;
+    await store.submitOrder(
+      host.secret,
+      code,
+      order(round.roundId, { quantity: 1, protectionPriceCents: 100 }),
+    );
+  }
+  const snapshot = (await store.snapshot(host.secret, code)).round!;
+  expect(snapshot.recentOrders).toHaveLength(20);
+  expect(
+    snapshot.recentOrders.some((x) => x.requestId === request.requestId),
+  ).toBe(false);
+  expect(await store.submitOrder(host.secret, code, request)).toEqual(original);
+  expect((await store.snapshot(host.secret, code)).round).toEqual(snapshot);
+  expect(snapshot.trades).toHaveLength(2);
+});
 it("commits AC-03 once and returns the original balances after retries, later trades and restart (AC-07/12/14)", async () => {
   const { host, code, round } = await openRound();
   const payload = order(round.roundId);

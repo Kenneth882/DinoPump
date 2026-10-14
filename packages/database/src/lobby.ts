@@ -313,13 +313,13 @@ export class LobbyStore {
           [code],
         )
       ).rows[0];
-      if (room.current_round_id !== request.roundId)
-        throw new TradingError("ROUND_MISMATCH");
       const baseline = (
         await client.query("SELECT baseline FROM rounds WHERE round_id=$1", [
           request.roundId,
         ])
       ).rows[0]?.baseline;
+      if (!baseline && room.current_round_id !== request.roundId)
+        throw new TradingError("ROUND_MISMATCH");
       if (
         !baseline?.initialState.humans.some(
           (participant: { playerId: string }) =>
@@ -333,6 +333,8 @@ export class LobbyStore {
         if (!previous.matches) throw new TradingError("IDEMPOTENCY_CONFLICT");
         return previous.outcome;
       }
+      if (room.current_round_id !== request.roundId)
+        throw new TradingError("ROUND_MISMATCH");
       if (room.status === "ABORTED") throw new TradingError("MARKET_CLOSED");
       const { state } = await this.catchUpRound(client, request.roundId, now);
       let resultState = state;

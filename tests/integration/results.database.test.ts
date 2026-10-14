@@ -77,6 +77,57 @@ it("settles at the exact deadline once, freezes initial marks and shared ranks, 
       ?.settlementSequence,
   ).toBe(snapshot.round?.sequence);
 });
+it("reconciles an original pending trade after lobby reset and a new round without exposing it to new members (AC-05/07/10/11)", async () => {
+  const { host, guest, code, round } = await openRound();
+  const request = {
+    roundId: round.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  };
+  const original = await store.submitOrder(host.secret, code, request);
+  now = round.closesAt;
+  await store.processDue();
+  await store.returnToLobby(host.secret, code, {
+    roundId: round.roundId,
+    requestId: randomUUID(),
+  });
+  expect(await store.submitOrder(host.secret, code, request)).toEqual(original);
+  await expect(
+    store.submitOrder(host.secret, code, { ...request, quantity: 1 }),
+  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  const newcomer = await store.createSession({
+    displayName: "New guest",
+    avatar: "trex",
+  });
+  await store.join(newcomer.secret, code);
+  await expect(
+    store.submitOrder(newcomer.secret, code, request),
+  ).rejects.toMatchObject({ code: "PLAYER_NOT_IN_ROUND" });
+  for (const player of [host, guest])
+    await store.ready(player.secret, code, {
+      ready: true,
+      requestId: randomUUID(),
+    });
+  await store.start(host.secret, code, { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  const fresh = (await store.snapshot(host.secret, code)).round!;
+  expect(await store.submitOrder(host.secret, code, request)).toEqual(original);
+  await expect(
+    store.submitOrder(host.secret, code, {
+      ...request,
+      requestId: randomUUID(),
+    }),
+  ).rejects.toMatchObject({ code: "ROUND_MISMATCH" });
+  expect((await store.snapshot(host.secret, code)).round).toEqual(fresh);
+  expect(fresh.portfolio).toEqual({
+    cashCents: 1000000,
+    holdings: { FERN: 0, AMBR: 0, VOLC: 0, BONE: 0 },
+  });
+});
 it("retains owned final portfolios after host reset and a fresh second round, without granting new guests access (AC-01/02/11)", async () => {
   const { host, guest, code, round } = await openRound();
   const request = {

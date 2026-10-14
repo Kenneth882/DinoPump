@@ -10,20 +10,53 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     viewport: { width: 360, height: 800 },
   });
   let loseNextTrade = false;
+  let dropNextSubmit = false;
   let blocked = false;
   const submissions: unknown[] = [];
   let originalResultPacket = "";
   let replayOldResult = () => {};
+  let silence = false;
+  let passBatchesWhileSilent = false;
+  let passTerminalWhileSilent = false;
+  let passHeartbeatWhileSilent = false;
+  let holdOrderDelivery = false;
+  let heldOrderAck = "";
+  let latestBatchPacket = "";
+  let injectPacket: (packet: string) => void = () => {};
+  let dropSnapshots = false;
+  let deferTradeState = false;
+  let heldSnapshotAck = "";
+  let releaseSnapshotAck = () => {};
+  const resyncs: {
+    roundId: string | null;
+    lastSequence: number;
+    requestId: string;
+  }[] = [];
+  let reorderBatches = false;
+  const delayedBatches: string[] = [];
+  let replayDelayedBatches = () => {};
   await guestContext.routeWebSocket(/socket\.io/, (ws) => {
     const server = ws.connectToServer();
     replayOldResult = () => {
       if (originalResultPacket) ws.send(originalResultPacket);
     };
+    releaseSnapshotAck = () => ws.send(heldSnapshotAck);
+    injectPacket = (packet) => ws.send(packet);
+    replayDelayedBatches = () => {
+      for (const packet of delayedBatches) ws.send(packet);
+      for (const packet of delayedBatches) ws.send(packet);
+    };
     ws.onMessage((message) => {
       const text = String(message);
+      if (text.includes('"room:resync"'))
+        resyncs.push(JSON.parse(text.slice(text.indexOf("[")))[1]);
       if (text.includes('"order:submit"')) {
         const payload = JSON.parse(text.slice(text.indexOf("[")))[1];
         submissions.push(payload);
+        if (dropNextSubmit) {
+          dropNextSubmit = false;
+          return;
+        }
         if (loseNextTrade) {
           blocked = true;
           loseNextTrade = false;
@@ -32,6 +65,55 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       server.send(message);
     });
     server.onMessage((message) => {
+      const text = String(message);
+      if (text.includes('"market:batch"')) latestBatchPacket = text;
+      if (holdOrderDelivery && text.includes('"order:result"')) return;
+      if (
+        holdOrderDelivery &&
+        /^43\d+\[/.test(text) &&
+        text.includes('"fills"') &&
+        !text.includes('"snapshot"')
+      ) {
+        heldOrderAck = text;
+        return;
+      }
+      if (passHeartbeatWhileSilent && text.includes('"room:heartbeat"')) {
+        ws.send(message);
+        return;
+      }
+      if (passTerminalWhileSilent && text.includes('"round:ended"')) {
+        ws.send(message);
+        return;
+      }
+      if (
+        (silence || deferTradeState || reorderBatches) &&
+        /^43\d+\[/.test(text) &&
+        text.includes('"snapshot"')
+      ) {
+        heldSnapshotAck = text;
+        return;
+      }
+      if (reorderBatches) {
+        if (/"(room:snapshot|presence:update|room:heartbeat)"/.test(text))
+          return;
+        if (text.includes('"market:batch"')) {
+          delayedBatches.push(text);
+          if (delayedBatches.length === 1) return;
+        }
+      }
+      if (
+        deferTradeState &&
+        /"(room:snapshot|market:batch|presence:update|room:heartbeat)"/.test(
+          text,
+        )
+      )
+        return;
+      if (
+        (silence &&
+          !(passBatchesWhileSilent && text.includes('"market:batch"'))) ||
+        (dropSnapshots && text.includes('"room:snapshot"'))
+      )
+        return;
       if (String(message).includes('"order:result"') && !originalResultPacket)
         originalResultPacket = String(message);
       if (!blocked) ws.send(message);
@@ -173,6 +255,60 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       VOLC: 0,
       BONE: 0,
     });
+    // A live socket with no authorized freshness evidence must pause trading.
+    // Only the correlated resync acknowledgement arrives; the event is lost.
+    silence = true;
+    dropSnapshots = true;
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect(
+      guest.getByRole("button", { name: "Submit buy" }),
+    ).toBeDisabled();
+    await expect(
+      guest.getByText("Quotes unavailable or stale", { exact: false }),
+    ).toBeVisible();
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    expect(resyncs.at(-1)).toMatchObject({
+      roundId: opening.roundId,
+      lastSequence: opening.sequence,
+    });
+    // A batch committed after snapshot capture arrives before the held response.
+    // The older snapshot must not enable a screen that has already seen newer facts.
+    const captured = JSON.parse(
+      heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")),
+    )[0].snapshot;
+    passBatchesWhileSilent = true;
+    await host.getByLabel("Whole units").fill("1");
+    await host.getByLabel("Maximum buy price (cents)").fill("100");
+    await host.getByRole("button", { name: "Submit buy" }).click();
+    await expect(host.getByTestId("trade-result")).toContainText(
+      "No liquidity within protection",
+    );
+    const attempts = resyncs.length;
+    releaseSnapshotAck();
+    await expect
+      .poll(() => resyncs.length, { timeout: 1500 })
+      .toBeGreaterThan(attempts);
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .snapshot.round.sequence,
+      )
+      .toBeGreaterThan(captured.round.sequence);
+    await expect(
+      guest.getByRole("button", { name: "Submit buy" }),
+    ).toBeDisabled();
+    passBatchesWhileSilent = false;
+    silence = false;
+    releaseSnapshotAck();
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible();
+    await expect(
+      guest.getByRole("button", { name: "Submit buy" }),
+    ).toBeEnabled();
+    dropSnapshots = false;
+    const synchronizedOpening = await read(guest);
     await guestContext.setOffline(true);
     await expect(
       guest.getByRole("status").filter({ hasText: "Reconnecting" }),
@@ -181,7 +317,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15000,
     });
-    expect(await read(guest)).toEqual(opening);
+    expect(await read(guest)).toEqual(synchronizedOpening);
     expect(
       await guest.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -214,16 +350,36 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     await expect(host.getByTestId("own-cash")).toHaveText("D$10,000.00");
     await guest.getByLabel("Whole units").fill("1");
     await guest.getByLabel("Maximum buy price (cents)").fill("100");
+    dropNextSubmit = true;
     await ticket.getByRole("button", { name: "Submit buy" }).click();
     await expect(guest.getByTestId("trade-result")).toContainText(
-      "No liquidity within protection",
+      "Pending reconciliation",
     );
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "No liquidity within protection",
+      { timeout: 15000 },
+    );
+    expect(submissions.at(-1)).toEqual(submissions.at(-2));
     await guest.getByLabel("Buy or sell").selectOption("sell");
     await guest.getByLabel("Whole units").fill("101");
     await ticket.getByRole("button", { name: "Submit sell" }).click();
     await expect(guest.getByTestId("trade-result")).toContainText("Rejected");
     await guest.getByLabel("Whole units").fill("100");
+    const cashBeforeSell = await guest.getByTestId("own-cash").innerText();
+    heldSnapshotAck = "";
+    deferTradeState = true;
     await ticket.getByRole("button", { name: "Submit sell" }).click();
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible();
+    // The private receipt cannot render balances from a batch still missing publicly.
+    await expect(guest.getByTestId("own-cash")).toHaveText(cashBeforeSell);
+    await expect(guest.getByTestId("trade-result")).toContainText(
+      "Pending reconciliation",
+    );
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    deferTradeState = false;
+    releaseSnapshotAck();
     await expect(guest.getByTestId("trade-result")).toContainText("Filled");
     await expect(guest.getByTestId("trade-result")).toContainText(
       "100 units executed; 0 unfilled",
@@ -264,6 +420,31 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
         (t: { sequence: number }) => t.sequence > bid.sequence,
       ),
     ).toHaveLength(3);
+    // Two real private-only batches arrive out of order while snapshots are held.
+    // Recovery restores complete state, and late duplicate packets cannot regress it.
+    reorderBatches = true;
+    heldSnapshotAck = "";
+    for (let i = 0; i < 2; i++) {
+      await host.getByRole("button", { name: "Submit buy" }).click();
+      await expect(
+        host.getByRole("button", { name: "Submit buy" }),
+      ).toBeEnabled();
+    }
+    await expect.poll(() => delayedBatches.length).toBe(2);
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      ticket.getByRole("button", { name: "Submit buy" }),
+    ).toBeDisabled();
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    reorderBatches = false;
+    releaseSnapshotAck();
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible();
+    const recoveredCash = await guest.getByTestId("own-cash").innerText();
+    replayDelayedBatches();
+    await expect(guest.getByTestId("own-cash")).toHaveText(recoveredCash);
+    await expect(guest.getByText("Connected", { exact: true })).toBeVisible();
     await guest.screenshot({
       path: testInfo.outputPath("trading-360.png"),
       fullPage: true,
@@ -362,8 +543,16 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       path: testInfo.outputPath("results-360.png"),
       fullPage: true,
     });
+    await guestContext.setOffline(true);
+    await expect(
+      guest.getByText("Reconnecting…", { exact: true }),
+    ).toBeVisible();
     await host.getByRole("button", { name: "Return to lobby" }).focus();
     await host.keyboard.press("Enter");
+    await expect(
+      host.getByRole("button", { name: "Ready for round", exact: true }),
+    ).toBeVisible();
+    await guestContext.setOffline(false);
     for (const page of [host, guest]) {
       await expect(
         page.getByRole("button", { name: "Ready for round", exact: true }),
@@ -388,6 +577,167 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00");
     expect(await historical(host)).toEqual(firstHostResult);
     expect(await historical(guest)).toEqual(firstGuestResult);
+    // A close notification overtakes a previously captured OPEN snapshot.
+    // Releasing that response must not restore the obsolete trading screen.
+    silence = true;
+    heldSnapshotAck = "";
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    const beforeCloseAck = heldSnapshotAck;
+    const beforeCloseAttempts = resyncs.length;
+    passTerminalWhileSilent = true;
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK, "1200000");
+    await expect(
+      host.getByRole("heading", { name: "Round results", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    injectPacket(beforeCloseAck);
+    await expect
+      .poll(() => resyncs.length, { timeout: 1500 })
+      .toBeGreaterThan(beforeCloseAttempts);
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .snapshot.status,
+      )
+      .toBe("FINISHED");
+    silence = false;
+    passTerminalWhileSilent = false;
+    releaseSnapshotAck();
+    await expect(
+      guest.getByRole("heading", { name: "Round results", exact: true }),
+    ).toBeVisible();
+    // Keep an unresolved original order through close/reset, then deliver its
+    // successful historical acknowledgement during another resync.
+    async function resetAndReady() {
+      await host.getByRole("button", { name: "Return to lobby" }).click();
+      for (const page of [host, guest])
+        await page
+          .getByRole("button", { name: "Ready for round", exact: true })
+          .click();
+    }
+    await resetAndReady();
+    await host
+      .getByRole("button", { name: "Start round", exact: true })
+      .click();
+    await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00", {
+      timeout: 15000,
+    });
+    holdOrderDelivery = true;
+    deferTradeState = true;
+    heldOrderAck = "";
+    heldSnapshotAck = "";
+    await guest.getByLabel("Whole units").fill("1");
+    await guest.getByLabel("Maximum buy price (cents)").fill("4100");
+    await guest.getByRole("button", { name: "Submit buy" }).click();
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK, "1805000");
+    await expect(
+      host.getByRole("heading", { name: "Round results", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await host.getByRole("button", { name: "Return to lobby" }).click();
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .snapshot.status,
+      )
+      .toBe("LOBBY");
+    const attemptsBeforeLobby = submissions.length;
+    heldOrderAck = "";
+    releaseSnapshotAck();
+    await expect(
+      guest.getByRole("button", { name: "Ready for round", exact: true }),
+    ).toBeVisible();
+    await expect
+      .poll(() => submissions.length)
+      .toBeGreaterThan(attemptsBeforeLobby);
+    await expect.poll(() => heldOrderAck).not.toBe("");
+    const historicalAck = heldOrderAck;
+    const afterLobbyAttempts = resyncs.length;
+    injectPacket(latestBatchPacket);
+    await expect.poll(() => resyncs.length).toBeGreaterThan(afterLobbyAttempts);
+    injectPacket(historicalAck);
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .requestId,
+      )
+      .toBe(resyncs.at(-1)!.requestId);
+    holdOrderDelivery = false;
+    deferTradeState = false;
+    releaseSnapshotAck();
+    for (const page of [host, guest])
+      await page
+        .getByRole("button", { name: "Ready for round", exact: true })
+        .click();
+    await host
+      .getByRole("button", { name: "Start round", exact: true })
+      .click();
+    // Opening evidence overtakes a COUNTDOWN capture. Its old reply cannot
+    // synchronize the new market merely because its socket remains connected.
+    silence = true;
+    heldSnapshotAck = "";
+    await expect(
+      guest.getByText("Synchronizing…", { exact: true }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect.poll(() => heldSnapshotAck).not.toBe("");
+    const countdownAck = heldSnapshotAck;
+    const beforeOpeningAttempts = resyncs.length;
+    passHeartbeatWhileSilent = true;
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK, "1810000");
+    await expect
+      .poll(() => resyncs.length, { timeout: 1500 })
+      .toBeGreaterThan(beforeOpeningAttempts);
+    injectPacket(countdownAck);
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .snapshot.status,
+      )
+      .toBe("OPEN");
+    const firstOpeningAck = heldSnapshotAck;
+    const firstOpeningSequence = JSON.parse(
+      firstOpeningAck.slice(firstOpeningAck.indexOf("[")),
+    )[0].snapshot.round.sequence;
+    // A second batch from that new round arrives while its first snapshot is held.
+    // The recovery cursor must cover it even though the previous round is visible.
+    passHeartbeatWhileSilent = false;
+    passBatchesWhileSilent = true;
+    await host.getByLabel("Whole units").fill("1");
+    await host.getByLabel("Maximum buy price (cents)").fill("100");
+    await host.getByRole("button", { name: "Submit buy" }).click();
+    await expect(host.getByTestId("trade-result")).toContainText(
+      "No liquidity within protection",
+    );
+    const newRoundAttempts = resyncs.length;
+    injectPacket(firstOpeningAck);
+    await expect
+      .poll(() => resyncs.length, { timeout: 1500 })
+      .toBeGreaterThan(newRoundAttempts);
+    await expect
+      .poll(
+        () =>
+          JSON.parse(heldSnapshotAck.slice(heldSnapshotAck.indexOf("[")))[0]
+            .snapshot.round.sequence,
+      )
+      .toBeGreaterThan(firstOpeningSequence);
+    passBatchesWhileSilent = false;
+    silence = false;
+    passHeartbeatWhileSilent = false;
+    releaseSnapshotAck();
+    await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00");
+    await expect(
+      guest.getByRole("button", { name: "Submit buy" }),
+    ).toBeEnabled();
+    expect(submissions.at(-1)).toEqual(submissions.at(-2));
   } finally {
     await hostContext.close();
     await guestContext.close();

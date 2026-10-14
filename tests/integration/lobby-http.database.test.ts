@@ -5,6 +5,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { isolatedDatabase } from "../helpers/database.js";
 import { migrate, LobbyStore } from "../../packages/database/dist/index.js";
 import { createGameServer } from "../../apps/game-server/src/server.js";
+import {
+  lobbySnapshotSchema,
+  marketBatchSchema,
+  type LobbySnapshot,
+  type MarketBatch,
+} from "../../packages/contracts/src/index.js";
 
 let database: Awaited<ReturnType<typeof isolatedDatabase>>;
 let store: LobbyStore;
@@ -154,6 +160,132 @@ async function connectGuest(cookie: string, code: string) {
   await snapshot;
   return socket;
 }
+it("resynchronizes by round and sequence, validates requests and keeps membership authoritative (AC-05/10)", async () => {
+  const host = await session("Host");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  const socket = await connectGuest(host, room.code);
+  const requestId = randomUUID();
+  const payload = { roundId: null, lastSequence: 0, requestId };
+  const result = await socket.timeout(2000).emitWithAck("room:resync", payload);
+  expect(result).toMatchObject({
+    requestId,
+    snapshot: { code: room.code, status: "LOBBY", round: null },
+  });
+  // An obsolete cursor requests current state; it cannot select someone else's round.
+  expect(
+    await socket.timeout(2000).emitWithAck("room:resync", {
+      roundId: randomUUID(),
+      lastSequence: 999999,
+    }),
+  ).toMatchObject({ snapshot: { code: room.code, status: "LOBBY" } });
+  for (const invalid of [
+    { ...payload, lastSequence: -1 },
+    { ...payload, lastSequence: -1, requestId: requestId.toUpperCase() },
+    { ...payload, lastSequence: 1.5 },
+    { ...payload, playerId: randomUUID() },
+    { ...payload, code: room.code },
+  ])
+    expect(
+      await socket.timeout(2000).emitWithAck("room:resync", invalid),
+    ).toMatchObject({ requestId, error: "INVALID_REQUEST" });
+});
+it("delivers a snapshot at N before a competing committed batch and filters every recipient (AC-05/10/14)", async () => {
+  const host = await session("Host"),
+    guest = await session("Guest");
+  const room = await (await post("/api/rooms", {}, host)).json();
+  await post(`/api/rooms/${room.code}/join`, {}, guest);
+  const first = await connectGuest(host, room.code),
+    second = await connectGuest(guest, room.code);
+  for (const socket of [first, second])
+    await socket
+      .timeout(2000)
+      .emitWithAck("room:ready", { ready: true, requestId: randomUUID() });
+  await first
+    .timeout(2000)
+    .emitWithAck("round:start", { requestId: randomUUID() });
+  now += 5000;
+  await store.processDue();
+  const opening = (await store.snapshot(host.slice(13), room.code)).round!;
+  for (const socket of [first, second])
+    await socket.timeout(2000).emitWithAck("room:resync", {
+      roundId: opening.roundId,
+      lastSequence: 0,
+    });
+  const delivered: (LobbySnapshot | MarketBatch)[] = [];
+  first.on("room:snapshot", (x) =>
+    delivered.push(lobbySnapshotSchema.parse(x)),
+  );
+  first.on("market:batch", (x) => delivered.push(marketBatchSchema.parse(x)));
+  const privatePeer: unknown[] = [];
+  second.on("order:result", (x) => privatePeer.push(x));
+  const request = {
+    roundId: opening.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 150,
+    protectionPriceCents: 4100,
+  };
+  const capture = store.snapshot.bind(store);
+  const competingCommit = vi
+    .spyOn(store, "snapshot")
+    .mockImplementationOnce(async (...args) => {
+      const snapshot = await capture(...args);
+      // Commit at the persistence boundary while the captured snapshot awaits delivery.
+      await store.submitOrder(host.slice(13), room.code, request);
+      return snapshot;
+    });
+  try {
+    const resynced = await first.timeout(2000).emitWithAck("room:resync", {
+      roundId: opening.roundId,
+      lastSequence: opening.sequence,
+      requestId: randomUUID(),
+    });
+    expect(resynced.snapshot.round.sequence).toBe(3);
+    await expect
+      .poll(() => delivered.filter((x) => "startSequence" in x).length)
+      .toBe(1);
+    expect(delivered[0]).toMatchObject({
+      round: { sequence: 3, portfolio: { cashCents: 1000000 } },
+    });
+    const batch = delivered.find(
+      (x): x is MarketBatch => "startSequence" in x,
+    )!;
+    expect(batch).toMatchObject({
+      startSequence: 4,
+      trades: [
+        { quantity: 100, priceCents: 4040 },
+        { quantity: 50, priceCents: 4080 },
+      ],
+    });
+    expect(JSON.stringify(batch)).not.toMatch(
+      /requestId|protectionPriceCents|holdings|cashCents|secret/,
+    );
+    const owner = await first.timeout(2000).emitWithAck("room:resync", {
+      roundId: opening.roundId,
+      lastSequence: batch.endSequence,
+    });
+    const peer = await second.timeout(2000).emitWithAck("room:resync", {
+      roundId: opening.roundId,
+      lastSequence: batch.endSequence,
+    });
+    expect(owner.snapshot.round).toMatchObject({
+      sequence: batch.endSequence,
+      portfolio: { cashCents: 392000 },
+      recentOrders: [{ requestId: request.requestId }],
+    });
+    expect(peer.snapshot.round).toMatchObject({
+      sequence: batch.endSequence,
+      assets: batch.assets,
+      quotes: batch.quotes,
+      portfolio: { cashCents: 1000000 },
+      recentOrders: [],
+    });
+    expect(privatePeer).toEqual([]);
+  } finally {
+    competingCommit.mockRestore();
+  }
+});
 it("keeps liveness separate from readiness and fails closed on live-connection ownership loss", async () => {
   expect((await fetch(`${origin}/healthz`)).status).toBe(200);
   expect((await fetch(`${origin}/readyz`)).status).toBe(200);
