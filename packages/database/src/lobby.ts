@@ -17,7 +17,7 @@ import { loadBaseline } from "@dinopump/game-content";
 import {
   persistRoundOpening,
   persistEngineBatch,
-  readOpenedRound,
+  recoverOpenedRound,
 } from "./opened-round.js";
 import {
   guestRequestSchema,
@@ -101,7 +101,7 @@ export class LobbyStore {
             "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL AND status<>'ABORTED'",
           );
           for (const room of opened.rows) {
-            if (!(await readOpenedRound(db, room.current_round_id)))
+            if (!(await recoverOpenedRound(db, room.current_round_id)))
               throw new Error("Missing active round");
           }
           // A previous process's sockets cannot survive ownership takeover.
@@ -197,11 +197,11 @@ export class LobbyStore {
         !row ||
         Number(row.sequence) !== cached.sequence ||
         !isDeepStrictEqual(row.state, cached)
-      )
-        throw new RoundIntegrityError(
-          roundId,
-          "Cached projection disagrees with committed state",
-        );
+      ) {
+        const recovered = await recoverOpenedRound(client, roundId);
+        if (recovered) this.transactionCache.set(roundId, recovered);
+        return recovered;
+      }
       try {
         await verifyFinalResult(client, cached);
       } catch (error) {
@@ -213,7 +213,7 @@ export class LobbyStore {
       }
       return cached;
     }
-    const verified = await readOpenedRound(client, roundId);
+    const verified = await recoverOpenedRound(client, roundId);
     if (verified) this.transactionCache.set(roundId, verified);
     return verified;
   }
@@ -234,7 +234,7 @@ export class LobbyStore {
           "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL AND status<>'ABORTED'",
         );
         for (const room of rooms.rows) {
-          const state = await readOpenedRound(client, room.current_round_id);
+          const state = await recoverOpenedRound(client, room.current_round_id);
           if (!state) throw new Error("Missing active round");
           // Ready only after due effects catch up; terminal results remain ready.
           const next = state.round.schedule[state.nextScheduledEvent];
@@ -328,6 +328,17 @@ export class LobbyStore {
       )
         throw new TradingError("PLAYER_NOT_IN_ROUND");
       this.consumeOrderToken(player.playerId, now);
+      // Historical retries remain readable after reset only for verified rounds.
+      // The abort belongs to the requested round, even after the room moves on.
+      const aborted = await client.query(
+        "SELECT 1 FROM round_aborts WHERE round_id=$1",
+        [request.roundId],
+      );
+      if (
+        aborted.rowCount ||
+        (room.status === "ABORTED" && room.current_round_id === request.roundId)
+      )
+        throw new TradingError("MARKET_CLOSED");
       const previous = await readOrder(client, request, player.playerId);
       if (previous) {
         if (!previous.matches) throw new TradingError("IDEMPOTENCY_CONFLICT");
@@ -335,7 +346,6 @@ export class LobbyStore {
       }
       if (room.current_round_id !== request.roundId)
         throw new TradingError("ROUND_MISMATCH");
-      if (room.status === "ABORTED") throw new TradingError("MARKET_CLOSED");
       const { state } = await this.catchUpRound(client, request.roundId, now);
       let resultState = state;
       let receipt = null;
@@ -770,7 +780,7 @@ export class LobbyStore {
           roundId,
         ])
       ).rowCount;
-      if (!abort) await readOpenedRound(client, roundId);
+      if (!abort) await recoverOpenedRound(client, roundId);
       const result = await participantResult(client, roundId, player.playerId);
       if (!result) throw new LobbyError("INVALID_ROOM_STATE");
       return result;

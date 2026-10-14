@@ -81,12 +81,38 @@ export async function readOpenedRound(
   db: Pool | PoolClient,
   roundId: string,
 ): Promise<EngineState | null> {
+  return readRoundHistory(db, roundId, true);
+}
+
+/** Only the room owner may replace a projection, inside its serialized transaction.
+ * Verify all immutable evidence first; a damaged stream must never be repaired.
+ */
+export async function recoverOpenedRound(client: PoolClient, roundId: string) {
+  const state = await readRoundHistory(client, roundId, false);
+  if (state)
+    await client.query(
+      `INSERT INTO round_projections(round_id,sequence,schema_version,state) VALUES ($1,$2,1,$3)
+       ON CONFLICT (round_id) DO UPDATE SET sequence=EXCLUDED.sequence,schema_version=EXCLUDED.schema_version,state=EXCLUDED.state
+       WHERE round_projections.sequence IS DISTINCT FROM EXCLUDED.sequence
+         OR round_projections.schema_version IS DISTINCT FROM EXCLUDED.schema_version
+         OR round_projections.state IS DISTINCT FROM EXCLUDED.state`,
+      [roundId, state.sequence, state],
+    );
+  return state;
+}
+
+async function readRoundHistory(
+  db: Pool | PoolClient,
+  roundId: string,
+  verifyProjection: boolean,
+): Promise<EngineState | null> {
   frozenRoundSchema.shape.roundId.parse(roundId);
   const result = await db.query(
     `SELECT baseline,
     (SELECT jsonb_agg(batch ORDER BY end_sequence) FROM round_batches WHERE round_id=r.round_id) AS batches,
     (SELECT jsonb_agg(jsonb_build_object('schemaVersion',schema_version,'roundId',round_id,'sequence',sequence,'type',type,'payload',payload,'causeId',cause_id::text,'occurredAtMs',occurred_at_ms) ORDER BY sequence) FROM game_events WHERE round_id=r.round_id AND sequence>1) AS events,
-    (SELECT payload FROM game_events WHERE round_id=r.round_id AND sequence=1 AND type='RoundInitialized') AS initialized,
+    (SELECT jsonb_build_object('roundId',round_id,'sequence',sequence,'eventId',event_id,'schemaVersion',schema_version,'type',type,'payload',payload,'causeId',cause_id,'occurredAtMs',occurred_at_ms)
+      FROM game_events WHERE round_id=r.round_id AND sequence=1) AS initialized,
     (SELECT jsonb_agg(jsonb_build_object('item',n.item,'input',j.input,'sourceSequence',e.sequence) ORDER BY e.sequence)
       FROM news_items n JOIN game_events e ON e.event_id=n.source_event_id
       LEFT JOIN commentary_jobs j USING(source_event_id) WHERE n.round_id=r.round_id) AS news,
@@ -194,20 +220,24 @@ export async function readOpenedRound(
       )
     )
       throw new Error("Missing durable order");
-    const projection = engineStateSchema.parse(row.projection);
     // Stored textual causes preserve both UUID opening and scheduled logical identities.
     const facts = (row.batches as { events: unknown[] }[]).flatMap(
       (batch) => batch.events,
     );
     if (
-      !isDeepStrictEqual(row.initialized, round) ||
-      !isDeepStrictEqual(row.events, facts) ||
-      !isDeepStrictEqual(projection, replayed.state) ||
-      Number(row.projection_sequence) !== replayed.state.sequence
+      !isDeepStrictEqual(row.initialized, {
+        roundId: round.roundId,
+        sequence: 1,
+        eventId: round.roundId,
+        schemaVersion: 1,
+        type: "RoundInitialized",
+        payload: round,
+        causeId: round.roundId,
+        occurredAtMs: round.createdAtMs,
+      }) ||
+      !isDeepStrictEqual(row.events, facts)
     ) {
-      throw new Error(
-        "Round projection or event history disagrees with replay",
-      );
+      throw new Error("Round event history disagrees with replay");
     }
     const scheduled = (row.batches as EngineBatch[]).filter(
       (batch) => batch.command.type === "ApplyScheduledEvent",
@@ -231,6 +261,12 @@ export async function readOpenedRound(
         throw new Error("Scheduled news or job disagrees with history");
     });
     await verifyFinalResult(db, replayed.state);
+    if (
+      verifyProjection &&
+      (!isDeepStrictEqual(engineStateSchema.parse(row.projection), state) ||
+        Number(row.projection_sequence) !== state.sequence)
+    )
+      throw new Error("Round projection disagrees with replay");
     return replayed.state;
   } catch (error) {
     // PostgreSQL failures have a code; unavailable storage is not corrupt history.

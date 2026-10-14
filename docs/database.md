@@ -92,15 +92,50 @@ on an unrelated connection or separating matching from serialization is unsafe.
 
 `LobbyStore.open` replays and catches up missed pre-close effects before returning.
 The service catches up and settles after the closing deadline; verified terminal
-rounds remain ready. General projection rebuilding and trade crash recovery remain
-#13. Late catch-up never moves the persisted round deadlines.
+rounds remain ready. Owned recovery now rebuilds mutable projections after verifying
+immutable history. See [ticket #13 evidence](validation/ticket-13-recovery.md).
+Late catch-up never moves the persisted round deadlines.
 
 ## Durable orders and fills
 
 Migration 5 adds immutable `orders` and `trades`, unique round/player/request identities, event/owner foreign keys, and transactional `round_batches.public_view`. Orders store canonical content and original private results; fills retain their source event sequence and order identity. Replay checks these derived records and public views against deterministic history. Original outcomes survive later trades, close, and restart. Closed attempts are zero-fill results anchored to committed state; ticket #11 settles first for new deadline attempts while preserving historical anchors. Durable identity storage is never limited to the 20 outcomes shown in an owner snapshot.
 
-The owned cache stores only committed verified engine states, checks their projection on reads, and invalidates on transaction failure or ownership/database loss. Startup and readiness verify full history, outcome/fill linkage, news/jobs, and projections. Materialized public views avoid replay per recipient; pre-migration history can still be reconstructed. This does not add projection repair or full crash settlement (#13).
+The owned cache stores only committed verified engine states, checks their projection on reads, and invalidates on transaction failure or ownership/database loss. Startup and readiness verify full history, outcome/fill linkage, news/jobs, and projections. Materialized public views avoid replay per recipient; pre-migration history can still be reconstructed. Ticket #13 extends this with owned projection rebuilding and process-termination validation.
 
 ## Immutable results and integrity aborts
 
-Migration 6 adds immutable settlement-linked `round_results` and independent `round_aborts` for safe terminal integrity failures. Result rows freeze marks/ranks, display names, event facts, and all final private portfolios; participant APIs expose only the owner's portfolio. Replay verifies results against settlement history. Host reset clears the active pointer/readiness and restores lobby deadlines while retaining old results/orders/events. See [ticket #11 evidence](validation/ticket-11-results.md). Invalid history is retained; projection rebuilding remains #13.
+Migration 6 adds immutable settlement-linked `round_results` and independent `round_aborts` for safe terminal integrity failures. Result rows freeze marks/ranks, display names, event facts, and all final private portfolios; participant APIs expose only the owner's portfolio. Replay verifies results against settlement history. Host reset clears the active pointer/readiness and restores lobby deadlines while retaining old results/orders/events. See [ticket #11 evidence](validation/ticket-11-results.md). Invalid history is retained; owned projection rebuilding is described below.
+
+## Recovery and projection rebuilding
+
+Ticket [#13](https://github.com/Kenneth882/DinoPump/issues/13) separates strict
+readback from owned repair. `readOpenedRound` remains a read-only verifier; it
+rejects a projection that disagrees with replay. `LobbyStore.open` acquires the
+exclusive lock and verifies all immutable evidence before transactionally replacing
+missing or damaged mutable projections, then catches up scheduled effects and
+closing before returning. Current owned reads and historical participant result
+reads can perform the same repair. No schema migration or gameplay rules change
+is required. Original recorded deadlines, resources, outcomes, and final results
+remain authoritative across configuration changes and restart.
+
+After database connection or ownership loss, the old store fails closed. Restart
+the game service using `pnpm --filter @dinopump/game-server start` after a build,
+or the documented development command. A competing process cannot acquire the
+same schema's ownership lock. Recovery verifies the complete history and drains
+missed pre-close effects before opening its listener; `/readyz` reports readiness
+only after due work is committed. Do not manually edit immutable history to force
+recovery. A genuinely unverifiable unfinished round records a safe abort without
+a winner; an existing result is never replaced with an abort.
+
+The recovery tests use real child service processes and SIGKILL, PostgreSQL test
+locks/triggers, synthetic clocks, and real HTTP/Socket.IO boundaries. Test control
+lives only under `tests/helpers`; production has no clock or fault-control routes.
+Run `pnpm db:verify` for the full database suite. To run only recovery cases while
+the dedicated test database is healthy:
+
+```sh
+TEST_DATABASE_URL=postgresql://dinopump_test:synthetic_test_only@127.0.0.1:55433/dinopump_test pnpm exec vitest run --config vitest.database.config.ts tests/integration/recovery.database.test.ts tests/integration/recovery-process.database.test.ts
+```
+
+See [ticket #13 evidence](validation/ticket-13-recovery.md) for acceptance coverage
+and remaining client/release gates.

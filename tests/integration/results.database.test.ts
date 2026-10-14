@@ -44,6 +44,20 @@ async function openRound() {
     round: (await store.snapshot(host.secret, code)).round!,
   };
 }
+async function damageHistory(roundId: string) {
+  // Fault injection bypasses immutability only in this synthetic schema.
+  await database.pool.query(
+    "ALTER TABLE game_events DISABLE TRIGGER immutable_event",
+  );
+  await database.pool.query(
+    "UPDATE game_events SET payload='{}' WHERE round_id=$1 AND sequence=2",
+    [roundId],
+  );
+  await database.pool.query(
+    "UPDATE round_projections SET state=jsonb_set(state,'{trading,humans,0,cashCents}','0') WHERE round_id=$1",
+    [roundId],
+  );
+}
 it("settles at the exact deadline once, freezes initial marks and shared ranks, and stays ready (AC-09/11/12/15)", async () => {
   const { host, guest, code, round } = await openRound();
   now = round.closesAt - 1;
@@ -244,10 +258,7 @@ it("rolls back settlement before commit and recovers one frozen result after res
 });
 it("records a safe abort for unverifiable history, allows reset, and never invents a winner (AC-11/12)", async () => {
   const { host, code, round } = await openRound();
-  await database.pool.query(
-    "UPDATE round_projections SET state=jsonb_set(state,'{trading,humans,0,cashCents}','0') WHERE round_id=$1",
-    [round.roundId],
-  );
+  await damageHistory(round.roundId);
   await expect(store.processDue()).rejects.toThrow();
   const snapshot = await store.snapshot(host.secret, code);
   expect(snapshot).toMatchObject({
@@ -270,10 +281,7 @@ it("records a safe abort for unverifiable history, allows reset, and never inven
 });
 it("does not write an abort when ownership is lost during integrity recovery", async () => {
   const { host, code, round } = await openRound();
-  await database.pool.query(
-    "UPDATE round_projections SET state=jsonb_set(state,'{trading,humans,0,cashCents}','0') WHERE round_id=$1",
-    [round.roundId],
-  );
+  await damageHistory(round.roundId);
   await database.pool.query(
     `CREATE FUNCTION lose_abort_owner() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_unlock(18474,hashtext(current_schema())); RETURN NEW; END $$; CREATE TRIGGER lose_abort_owner BEFORE INSERT ON round_aborts FOR EACH ROW EXECUTE FUNCTION lose_abort_owner()`,
   );
@@ -291,30 +299,23 @@ it("does not write an abort when ownership is lost during integrity recovery", a
     terminal: { status: "ABORTED" },
   });
 });
-it("preserves an existing valid final result when a later projection cannot be verified", async () => {
+it("automatically repairs a damaged finished projection while preserving immutable results", async () => {
   const { host, code, round } = await openRound();
   now = round.closesAt;
   await store.processDue();
   const original = await store.results(host.secret, round.roundId);
-  const verified = await readOpenedRound(database.pool, round.roundId);
   await database.pool.query(
     "UPDATE round_projections SET state=jsonb_set(state,'{trading,humans,0,cashCents}','0') WHERE round_id=$1",
     [round.roundId],
   );
-  expect(await store.isReady()).toBe(false);
-  await expect(store.snapshot(host.secret, code)).rejects.toThrow();
+  expect(await store.isReady()).toBe(true);
+  expect((await store.snapshot(host.secret, code)).status).toBe("FINISHED");
   await expect(
     database.pool.query(
       "INSERT INTO round_aborts(round_id,public_view) VALUES ($1,$2)",
       [round.roundId, { roundId: round.roundId, status: "ABORTED" }],
     ),
   ).rejects.toThrow("immutable");
-  // Test-owned repair demonstrates preservation; automatic projection rebuilding
-  // remains Ticket 13, and this service stays unready while verification fails.
-  await database.pool.query(
-    "UPDATE round_projections SET state=$2 WHERE round_id=$1",
-    [round.roundId, verified],
-  );
   expect(await store.results(host.secret, round.roundId)).toEqual(original);
   expect((await store.snapshot(host.secret, code)).status).toBe("FINISHED");
 });

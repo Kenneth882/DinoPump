@@ -920,7 +920,18 @@ it("measures eight-client acknowledgements, delivery, snapshots and scheduler la
   deliveries.sort((a, b) => a - b);
   now = view.snapshot.round.opensAt + 60000;
   const lag = await store.processDue();
-  expect(lag).toHaveLength(1);
+  // The real service timer may drain the same deadline first. Verify the
+  // committed event once, regardless of which owned scheduler call wins.
+  const appliedNews = (await store.snapshot(cookies[0]!.slice(13), room.code))
+    .round!.news;
+  expect(appliedNews).toHaveLength(1);
+  expect(appliedNews[0]?.scheduledEventId).toBe(
+    `${view.snapshot.round.roundId}:1`,
+  );
+  const scheduledLagMs =
+    lag[0]?.lagMs ??
+    Math.max(0, appliedNews[0]!.appliedAtMs - appliedNews[0]!.dueAtMs);
+  expect(scheduledLagMs).toBe(0);
   const schedulerStart = performance.now();
   await store.processDue();
   console.info(
@@ -931,7 +942,7 @@ it("measures eight-client acknowledgements, delivery, snapshots and scheduler la
         deliveries[Math.ceil(deliveries.length * 0.95) - 1]!,
       ),
       schedulerNoopMs: Math.round(performance.now() - schedulerStart),
-      scheduledLagMs: lag[0]?.lagMs,
+      scheduledLagMs,
     }),
   );
 }, 60000);

@@ -4,7 +4,7 @@
 
 `round-baseline.database.test.ts` runs with `pnpm db:verify` against the dedicated disposable PostgreSQL instance. It covers migrations, atomic initialization and rollback, concurrent retries, deterministic schedules, frozen resources/configuration, reconnect/readback, and baseline event/projection integrity. See [database setup and verification](../../docs/database.md) for isolation and commands.
 
-This supports AC-02, AC-09, AC-12, and AC-15 at the persistence foundation only. Live trading, scheduled effects, gameplay replay and restart catch-up remain unverified. The development database is not a disposable test database.
+This supports AC-02, AC-09, AC-12, and AC-15 at the persistence foundation only. This foundation suite alone does not verify live trading, scheduled effects, gameplay replay or restart catch-up; later suites provide that evidence. The development database is not a disposable test database.
 
 `lobby.database.test.ts` and `lobby-http.database.test.ts` also run through `pnpm db:verify`. They exercise the public store, HTTP and Socket.IO boundaries against PostgreSQL: guest normalization/expiry, cookie privacy, authorization, concurrent admission, join locks, restart, persisted deadlines with an injected clock, ownership exclusion, multiple sockets, subscription races and rollback publication. These provide AC-01/05 and lobby-only AC-10 evidence. See [lobby documentation](../../docs/lobby.md).
 
@@ -15,3 +15,19 @@ exercise host-only acknowledged start, complete opening delivery, health/readine
 and live-connection advisory-lock loss. These support AC-01/02/05 and opening-only
 AC-08/10/14. The scheduler, trades, settlement, and full crash catch-up retain
 their later acceptance gates.
+
+`recovery.database.test.ts` and `recovery-process.database.test.ts` cover ticket #13.
+They verify replacement of discarded/malformed/stale projections, immutable
+initialization-version and outcome checks, historical result repair after reset,
+frozen configuration, and refusal of damaged aborted order outcomes. Real child
+HTTP/Socket.IO services are killed before order commit, after commit before
+broadcast, during scheduled effects, and during settlement. Restarts verify exact
+replayed state, deadline catch-up, one settlement, private pending-order recovery,
+changed retries, startup gating, two-process exclusion, database connection loss,
+and explicit ownership loss. Fault controls exist only in the test helper.
+
+Database files run with one Vitest worker to avoid incidental cross-suite load on
+the shared test PostgreSQL instance. Required concurrent clients/processors run
+explicitly within tests. Use `pnpm db:verify`; never point these tests at development
+or production data. See [ticket #13 evidence](../../docs/validation/ticket-13-recovery.md)
+for service acceptance coverage and client/release limitations.
