@@ -26,6 +26,13 @@ replayed state, deadline catch-up, one settlement, private pending-order recover
 changed retries, startup gating, two-process exclusion, database connection loss,
 and explicit ownership loss. Fault controls exist only in the test helper.
 
+Synthetic legacy-history regressions cover settlement after batches without public
+views and recovery of an already stored opening-time settlement timestamp. They
+check exact preservation of batches, events, orders, fills, and private/public final
+results, plus correct snapshot and batch quote times. Unexpected timestamps,
+changed quotes/totals/results, and the same timestamp error after a materialized
+predecessor remain integrity failures (AC-07/11/12/15).
+
 Database files run with one Vitest worker to avoid incidental cross-suite load on
 the shared test PostgreSQL instance. Required concurrent clients/processors run
 explicitly within tests. Use `pnpm db:verify`; never point these tests at development

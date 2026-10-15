@@ -10,7 +10,7 @@ import { readOrder, persistOrder, readRecentOrders } from "./orders.js";
 import { processEngineCommand } from "@dinopump/engine";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { publicMarketView } from "./market-view.js";
+import { publicMarketView, readQuoteUpdatedAtMs } from "./market-view.js";
 import { readMarketUpdates } from "./market-updates.js";
 import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
@@ -492,8 +492,9 @@ export class LobbyStore {
       : null;
     const latestView =
       latestRow?.public_view ?? (engine ? publicMarketView(engine) : null);
-    const quoteUpdatedAtMs =
-      latestRow?.public_view?.quoteUpdatedAtMs ?? engine?.lastCommandAtMs;
+    const quoteUpdatedAtMs = engine
+      ? await readQuoteUpdatedAtMs(client, engine)
+      : undefined;
     const recentOrders =
       engine && playerId
         ? await readRecentOrders(client, engine.round.roundId, playerId)

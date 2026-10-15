@@ -310,6 +310,8 @@ Migration 5 adds immutable `orders` keyed by round/player/request, storing canon
 
 `round_batches.public_view` stores the batch's verified public view in the same transaction, avoiding historical replay for each recipient. Pre-migration batches retain a reconstruction fallback. An owned state cache accepts generated states only after commit, invalidates on failed transactions or ownership/database loss, and compares its projection on reads. Startup and readiness still verify full immutable history and derived records. The cache is an accelerator; it does not replace committed history.
 
+Quote freshness follows the latest committed `QuotesRebuilt` event, including when older batches have no public views. A historical settlement immediately after a batch with a null public view may contain the opening timestamp instead; recovery verifies that exact legacy encoding against the complete replayed public view, allowing only that timestamp discrepancy. It preserves the stored batch and immutable results, derives the correct timestamp for delivery, and still rejects every other disagreement with history.
+
 ### Immutable closing storage (ticket #11 stage)
 
 Migration 6 adds immutable `round_results`, keyed by round and linked to its settlement event sequence. Frozen public marks/ranks/display names/timeline and all private final portfolios commit with the settlement batch, projection, lifecycle transitions, and room visibility. Replay verifies result arithmetic and private portfolios against history; delivery selects only the authenticated owner's portfolio. Results cannot be updated or deleted and remain recorded after lobby reset.

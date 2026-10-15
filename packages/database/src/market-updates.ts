@@ -1,4 +1,4 @@
-import { publicMarketView } from "./market-view.js";
+import { publicMarketView, readQuoteUpdatedAtMs } from "./market-view.js";
 import type { PoolClient } from "pg";
 import {
   engineBatchSchema,
@@ -26,6 +26,11 @@ export async function readMarketUpdates(
         [verified.round.roundId, afterSequence],
       )
     ).rows.map((row) => newsItemSchema.parse(row.item));
+    const quoteUpdatedAtMs = current.rows.some(
+      (row) => row.batch.command.type === "SettleRound",
+    )
+      ? await readQuoteUpdatedAtMs(client, verified)
+      : undefined;
     return current.rows.map((row) => {
       const batch = engineBatchSchema.parse(row.batch);
       const startSequence = batch.events[0]!.sequence;
@@ -36,6 +41,7 @@ export async function readMarketUpdates(
         endSequence,
         serverTime,
         ...row.public_view,
+        ...(batch.command.type === "SettleRound" ? { quoteUpdatedAtMs } : {}),
         news: news.filter(
           (item) =>
             item.sequence >= startSequence && item.sequence <= endSequence,
@@ -63,8 +69,7 @@ export async function readMarketUpdates(
     const reduced = reduceEngineBatch(state, batch);
     if (!reduced.ok) throw new Error("Invalid market batch");
     state = reduced.state;
-    view =
-      row.public_view ?? publicMarketView(state, batch, view.quoteUpdatedAtMs);
+    view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
     if (state.sequence <= afterSequence) continue;
     const startSequence = batch.events[0]!.sequence;
     updates.push(

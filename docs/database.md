@@ -127,6 +127,15 @@ only after due work is committed. Do not manually edit immutable history to forc
 recovery. A genuinely unverifiable unfinished round records a safe abort without
 a winner; an existing result is never replaced with an abort.
 
+Settlement derives `quoteUpdatedAtMs` from committed `QuotesRebuilt` events rather
+than a preceding materialized public view. Older batches can have null public
+views. If an already recorded settlement immediately follows such a batch and
+contains the opening timestamp, replay accepts only that exact historical
+encoding, comparing every other public field and all authoritative evidence as
+usual. Snapshots and batch delivery use the verified quote time. Recovery neither
+rewrites the historical view nor changes immutable final results. No migration,
+data reset, or rules-version change is needed.
+
 The recovery tests use real child service processes and SIGKILL, PostgreSQL test
 locks/triggers, synthetic clocks, and real HTTP/Socket.IO boundaries. Test control
 lives only under `tests/helpers`; production has no clock or fault-control routes.

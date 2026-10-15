@@ -1,5 +1,5 @@
 import { verifyFinalResult, RoundIntegrityError } from "./results.js";
-import { publicMarketView } from "./market-view.js";
+import { publicMarketView, readQuoteUpdatedAtMs } from "./market-view.js";
 import { orderOutcome } from "./orders.js";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -54,16 +54,10 @@ export async function persistEngineBatch(
       ],
     );
   }
-  const previous = (
-    await client.query(
-      "SELECT public_view FROM round_batches WHERE round_id=$1 ORDER BY end_sequence DESC LIMIT 1",
-      [state.round.roundId],
-    )
-  ).rows[0]?.public_view;
   const view = publicMarketView(
     state,
     batch,
-    previous?.quoteUpdatedAtMs ?? state.round.opensAtMs,
+    await readQuoteUpdatedAtMs(client, state),
   );
   await client.query(
     "INSERT INTO round_batches (round_id,end_sequence,batch,public_view) VALUES ($1,$2,$3,$4)",
@@ -145,7 +139,20 @@ async function readRoundHistory(
         states.set(state.sequence, state);
         view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
       }
-      if (row.views[index] && !isDeepStrictEqual(row.views[index], view))
+      // Older writers used opensAtMs when settlement followed a batch with no
+      // public view. Validate that exact historical encoding in full, without
+      // rewriting it or allowing any other public field/timestamp discrepancy.
+      const legacySettlementView =
+        batch.command.type === "SettleRound" &&
+        index > 0 &&
+        row.views[index - 1] === null
+          ? { ...view, quoteUpdatedAtMs: round.opensAtMs }
+          : null;
+      if (
+        row.views[index] !== null &&
+        !isDeepStrictEqual(row.views[index], view) &&
+        !isDeepStrictEqual(row.views[index], legacySettlementView)
+      )
         throw new Error("Public view disagrees with history");
       if (batch.command.type === "SubmitOrder") {
         const owner = batch.command.order.playerId;
