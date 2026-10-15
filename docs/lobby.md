@@ -178,3 +178,23 @@ DINOPUMP_TEST_PROJECT=dinopump-ticket12 DINOPUMP_TEST_PORT=55434 pnpm test:e2e
 The defaults remain `dinopump-integration` and 55433. Test databases still use
 synthetic credentials, random schemas and temporary container storage. Run these
 harnesses sequentially; browser harnesses also require exclusive ports 3100/3101.
+
+## Preset reactions and executed activity (ticket #16)
+
+Synchronized room members can send “Big roar,” “Tiny arms, big gains,” and “Meteor
+incoming” in lobby, countdown, market and results views. An owned, currently
+authorized Socket.IO path acknowledges `reaction:send { requestId, reactionId }`
+and delivers `reaction:published` only to currently authorized recipients. One
+reaction per second per player applies across sockets and reconnects. These
+transients do not enter market history, advance market cursors, refresh trading
+connectivity, change resources, or modify frozen results. A lost acknowledgement
+reports uncertainty; it is never automatically retried or buffered offline.
+
+The separate activity panel reads the same completely applied public fills as
+the trade tape: one entry per executed fill with player, buy/sell, asset, units,
+unit price, total and game liquidity bot counterparty. Snapshot replacement
+recovers the last 30 fills after reconnect. Reactions display at most 20 items
+for ten seconds, clear on context change, and are not a screen-reader live
+stream. See the exact [reaction contract](spec/api-and-recovery.md#preset-reaction-delivery-ticket-16-stage)
+and [interface requirements](spec/interface.md). No new dependency, migration,
+environment variable, AI key or engine rule is required.

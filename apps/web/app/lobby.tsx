@@ -9,6 +9,11 @@ import {
 } from "react";
 import { RoundResults } from "./round-results";
 import { MarketTerminal } from "./market-terminal";
+import {
+  attachRoomReactions,
+  RoomReactions,
+  emptyReactionView,
+} from "./room-reactions";
 import { io } from "socket.io-client";
 import {
   guestRequestSchema,
@@ -81,6 +86,8 @@ export function Lobby() {
   const [tradePending, setTradePending] = useState(false);
   const [tradeResult, setTradeResult] = useState<OrderResult | null>(null);
   const [tradeMessage, setTradeMessage] = useState("");
+  const [reactionView, setReactionView] = useState(emptyReactionView);
+  const reactions = useRef<ReturnType<typeof attachRoomReactions> | null>(null);
   const trade = useRef<{
     payload: OrderSubmit;
     sending: boolean;
@@ -169,7 +176,14 @@ export function Lobby() {
     let reconnectDelay = 500;
     let reconnectAt = 0;
     let freshAt = performance.now();
+    const reactionChannel = attachRoomReactions(
+      socket,
+      () => (synchronized ? visible : null),
+      setReactionView,
+    );
+    reactions.current = reactionChannel;
     function requestSnapshot() {
+      reactionChannel.reset();
       synchronized = false;
       setConnection(socket.connected ? "Synchronizing…" : "Reconnecting…");
       if (resyncRequestId || !socket.connected) return;
@@ -246,6 +260,7 @@ export function Lobby() {
     }
     socket.on("connect", requestSnapshot);
     socket.on("disconnect", () => {
+      reactionChannel.reset();
       connectionEpoch++;
       resyncRequestId = null;
       synchronized = false;
@@ -549,6 +564,12 @@ export function Lobby() {
           setCommandPending(false);
         }
       }
+      if (
+        !visible ||
+        (visible.round?.roundId ?? visible.terminal?.roundId ?? null) !==
+          (parsed.data.round?.roundId ?? parsed.data.terminal?.roundId ?? null)
+      )
+        reactionChannel.reset();
       visible = parsed.data;
       observedSequence = visible.round?.sequence ?? 0;
       if (portfolio && visible.round)
@@ -652,6 +673,8 @@ export function Lobby() {
     }, 500);
     return () => {
       active = false;
+      reactionChannel.close();
+      if (reactions.current === reactionChannel) reactions.current = null;
       clearInterval(retry);
       if (command.current) command.current.sending = false;
       if (trade.current) trade.current.sending = false;
@@ -943,6 +966,13 @@ export function Lobby() {
                 setTradePending(true);
                 setTradeMessage("");
               }}
+            />
+          )}
+          {snapshot && (
+            <RoomReactions
+              view={reactionView}
+              enabled={connection === "Connected"}
+              onSend={(id) => reactions.current?.send(id)}
             />
           )}
           <p>

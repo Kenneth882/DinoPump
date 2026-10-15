@@ -1139,6 +1139,43 @@ export class LobbyStore {
     });
   }
 
+  /** Lightweight owned authorization for the separate transient channel. */
+  reactionAudience(
+    secret: string,
+    code: string,
+    recipients: { secret: string; code: string }[],
+  ) {
+    return this.run(async (client, now) => {
+      const player = await this.member(client, secret, code, now);
+      const room = (
+        await client.query<{ current_round_id: string | null }>(
+          "SELECT current_round_id FROM rooms WHERE code=$1",
+          [code],
+        )
+      ).rows[0];
+      const allowed: boolean[] = [];
+      for (const recipient of recipients) {
+        if (recipient.code !== code) {
+          allowed.push(false);
+          continue;
+        }
+        try {
+          await this.member(client, recipient.secret, code, now);
+          allowed.push(true);
+        } catch (error) {
+          if (!(error instanceof LobbyError)) throw error;
+          allowed.push(false);
+        }
+      }
+      return {
+        playerId: player.playerId,
+        roundId: room!.current_round_id,
+        serverTime: now,
+        allowed,
+      };
+    });
+  }
+
   processDue() {
     return this.run(async (client, now) => {
       const applied: {

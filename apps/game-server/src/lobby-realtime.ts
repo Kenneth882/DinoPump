@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { Server, type Socket } from "socket.io";
 import {
   lobbySubscriptionSchema,
@@ -6,6 +7,10 @@ import {
   roomResyncSchema,
   roundStartSchema,
   tradingErrorMessages,
+  reactionSendSchema,
+  reactionPublishedSchema,
+  reactionErrorCodeSchema,
+  reactionErrorMessages,
   type OrderResult,
 } from "@dinopump/contracts";
 import { LobbyError, TradingError } from "@dinopump/database";
@@ -33,6 +38,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     }
   >();
   let tail: Promise<unknown> = Promise.resolve();
+  const reactionCooldowns = new Map<string, number>();
   function serial<T>(work: () => Promise<T>) {
     const result = tail.then(work);
     tail = result.catch(() => {});
@@ -146,6 +152,61 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     );
   });
   io.on("connection", (socket) => {
+    socket.on("reaction:send", (payload: unknown, ack: unknown) => {
+      void serial(async () => {
+        const parsed = reactionSendSchema.safeParse(payload);
+        if (!parsed.success) throw new LobbyError("INVALID_REQUEST");
+        const member = members.get(socket);
+        if (!member || !socket.connected) throw new LobbyError("FORBIDDEN");
+        const recipients = [...members];
+        const audience = await options.store.reactionAudience(
+          member.secret,
+          member.code,
+          recipients.map(([, recipient]) => recipient),
+        );
+        for (const [playerId, at] of reactionCooldowns)
+          if (audience.serverTime - at >= 1000)
+            reactionCooldowns.delete(playerId);
+        const previous = reactionCooldowns.get(audience.playerId);
+        if (previous !== undefined && audience.serverTime - previous < 1000)
+          return {
+            error: "RATE_LIMITED",
+            message: reactionErrorMessages.RATE_LIMITED,
+            requestId: parsed.data.requestId,
+          };
+        const published = reactionPublishedSchema.parse({
+          id: randomUUID(),
+          code: member.code,
+          roundId: audience.roundId,
+          playerId: audience.playerId,
+          reactionId: parsed.data.reactionId,
+          serverTime: audience.serverTime,
+        });
+        reactionCooldowns.set(audience.playerId, audience.serverTime);
+        for (const [index, [recipient]] of recipients.entries())
+          if (audience.allowed[index] && recipient.connected)
+            recipient.emit("reaction:published", published);
+        return { requestId: parsed.data.requestId, publishedId: published.id };
+      })
+        .then((outcome) => {
+          if (typeof ack === "function") ack(outcome);
+        })
+        .catch((error: unknown) => {
+          const parsed = roundStartSchema.passthrough().safeParse(payload);
+          const code = reactionErrorCodeSchema.safeParse(
+            error instanceof LobbyError ? error.code : "SERVICE_UNAVAILABLE",
+          );
+          const errorCode = code.success ? code.data : "SERVICE_UNAVAILABLE";
+          const body = {
+            error: errorCode,
+            message: reactionErrorMessages[errorCode],
+            ...(parsed.success
+              ? { requestId: parsed.data.requestId.toLowerCase() }
+              : {}),
+          };
+          if (typeof ack === "function") ack(body);
+        });
+    });
     function commandError(payload: unknown, ack: unknown, error: unknown) {
       const requestId = roundStartSchema.passthrough().safeParse(payload);
       const body = {
