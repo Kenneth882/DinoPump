@@ -47,3 +47,14 @@ and shared no-trade winners. It checks received HTTP/WebSocket bodies for privat
 order or credential leaks and the permitted public-total fields. Screenshots
 include marked portfolios and frozen results at desktop and 360px widths. These
 checks support AC-04/10/11/17, not the later load or complete mobile-tab gates.
+
+`reactions.spec.ts` covers ticket #16 through the agreed browser/snapshot seam:
+preset reactions in lobby, open and results views, keyboard and reduced-motion
+use at 360px, public multi-fill buy/sell activity, rejected/zero-fill absence,
+duplicate delivery, bounded transient expiry, uncertain acknowledgement without
+resend, reaction traffic without market freshness, reconnect, events, settlement,
+reset and a later round. It compares both owners' authoritative market projections
+and immutable results, checks shared payload privacy, and saves desktop/360px
+screenshots. Run it alone with `pnpm test:e2e reactions.spec.ts`. Reaction loss is
+transient; committed activity must recover. These support AC-05/10/11/17 for this
+slice, not full release/load or mobile-tab acceptance.

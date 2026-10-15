@@ -33,7 +33,7 @@ All commands use runtime validation. The server derives player identity from the
 | Client → server | `room:ready` | `ready`, `requestId` |
 | Client → server | `round:start` | `requestId` |
 | Client → server | `order:submit` | `roundId`, `requestId`, `symbol`, `side`, `quantity`, `protectionPriceCents` |
-| Client → server | `reaction:send` | Approved `reactionId` |
+| Client → server | `reaction:send` | `requestId`, approved `reactionId` |
 | Client → server | `room:resync` | `roundId`, `lastSequence` |
 | Server → client | `room:snapshot` | Complete visible state, `sequence`, `serverTime`, deadlines |
 | Server → client | `market:batch` | Ordered public changes, start/end sequence, `serverTime` |
@@ -41,6 +41,7 @@ All commands use runtime validation. The server derives player identity from the
 | Server → client | `news:update` | Source event ID, facts, copy, narration status |
 | Server → client | `presence:update` | Connection/readiness status |
 | Server → client | `round:ended` | Immutable results and settlement sequence |
+| Server → client | `reaction:published` | Transient ID, room/round, sender, approved reaction, server time |
 | Server → client | `command:error` | Stable error code, safe message, optional `requestId` |
 
 Every command receives an acknowledgement carrying its request ID and outcome. Public batches contain a complete sequence envelope even when some event details are private; private holdings/order details are delivered only to their owner. Leaderboard portfolio totals and executed trade activity are public within the room.
@@ -90,6 +91,16 @@ Pending retries retain the exact original round, request ID, symbol, side, quant
 Opened snapshots add `openingAssets`, the four asset descriptions and initial prices from the round's frozen configuration, and `priceHistory`, all committed trade-price points in sequence order. Each point contains `sequence`, `atMs` (the recorded execution time), `symbol`, and `priceCents`. Complete `market:batch` messages add only that batch's `priceHistory` points. These public points expose no order identities, protections, or private resources. Existing committed batches remain unchanged; the delivery projection derives points from recorded trade events.
 
 The browser builds each asset's chart from its frozen initial point and executed fills only, using elapsed round time. Applied news supplies event markers independently of the price line. Reconnect replaces the chart history from the authorized snapshot, including fills older than the 30-fill recent tape. Watchlist changes compare the last trade with the frozen opening price; bid, ask, and reference prices remain separately labeled. Asset selection controls the chart, protected ticket, and actual covered depth together.
+
+### Preset reaction delivery (ticket #16 stage)
+
+The fixed catalog is `big-roar` (“Big roar”), `tiny-arms-big-gains` (“Tiny arms, big gains”), and `meteor-incoming` (“Meteor incoming”). `reaction:send` is exactly `{ requestId, reactionId }`, with a canonical UUID request ID. The subscription supplies the room and the authenticated session supplies the player. Extra fields, free text and unapproved identifiers fail with `INVALID_REQUEST`.
+
+Authorized members may react in the lobby, countdown, open and terminal views. The owned serialized path revalidates sender and recipients against current sessions and membership, without rebuilding market snapshots. Acceptance requires at least 1,000ms since that player's previous accepted reaction across all sockets, with no burst. Rejected attempts do not extend cooldown; reconnect does not reset it. Cooldowns expire independently of socket removal. Ownership/database failure prevents publication.
+
+`reaction:published` is exactly `{ id, code, roundId, playerId, reactionId, serverTime }`: a server-generated UUID, room code, current round UUID or null, authenticated sender UUID, approved identifier and integer server timestamp. It contains no command request ID, arbitrary text, private state or credentials. An acceptance is `{ requestId, publishedId }`. Safe errors are `{ error, message, requestId? }` with `INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `ROOM_NOT_FOUND`, `RATE_LIMITED` or `SERVICE_UNAVAILABLE`.
+
+Reactions are transient: request IDs correlate acknowledgements, not durable receipts. Do not buffer offline sends, automatically retry timeouts, or replay missed reactions after reconnect/restart. The browser reports an uncertain timeout, validates room/round and connection context, deduplicates publication IDs, and clears transients on context change. Reaction traffic never advances market cursors, establishes trading freshness, or changes pending orders, balances, marks or results. No reaction writes market events, batches, orders, trades or results.
 
 ### Recovery behavior
 

@@ -188,6 +188,8 @@ During the live-terminal stage (ticket #14), the synchronized round view uses a 
 
 During the portfolio stage (ticket #15), each owner sees private cash, units, marked holdings, portfolio value, profit and return. Live values use the authoritative public total and last-trade marks, falling back to the frozen opening price before any fill. The provisional leaderboard shows shared ranks in stable join order and retains disconnected players. Only permitted public totals appear for other players. Closing reuses the owner summary with frozen marks/results and a major-event timeline; historical authorized results remain unchanged after reconnect, lobby reset, and later rounds. Gain, loss and unchanged labels accompany numeric values, and portfolio panels and holdings disclosures support keyboard use.
 
+During the reactions/activity stage (ticket #16), shared room controls offer the three fixed dinosaur reactions in lobby, countdown, market and results views. Show pending/cooldown feedback and safe errors, disable sending until an authorized connection is synchronized, and report uncertain timeouts without automatic resend. Show at most 20 recent reactions for ten seconds, separately from executed facts; neither incoming reactions nor activity is a live announcement stream. Clear transients on disconnect and room/round change. The lower player activity panel derives one entry per completely applied public fill, with player, buy/sell direction, symbol, executed units/price/total and game liquidity bot counterparty. Use the existing latest-30-fill bound, an explicit empty state, and authoritative snapshot replacement on reconnect. Multi-level orders produce multiple entries; rejected and zero-fill orders produce none. Preserve the existing trade tape.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby
@@ -227,7 +229,6 @@ All controls support keyboard use and visible focus. Gains and losses use text o
 ### Results screen
 
 Show shared ranks, winner or tied winners, final portfolio value, profit, return, remaining cash/holdings, and a compact timeline of major market events. Provide a return-to-lobby action for the host. Full interactive replay is deferred.
-
 
 ## 7. Technical architecture
 
@@ -350,7 +351,7 @@ All commands use runtime validation. The server derives player identity from the
 | Client → server | `room:ready` | `ready`, `requestId` |
 | Client → server | `round:start` | `requestId` |
 | Client → server | `order:submit` | `roundId`, `requestId`, `symbol`, `side`, `quantity`, `protectionPriceCents` |
-| Client → server | `reaction:send` | Approved `reactionId` |
+| Client → server | `reaction:send` | `requestId`, approved `reactionId` |
 | Client → server | `room:resync` | `roundId`, `lastSequence` |
 | Server → client | `room:snapshot` | Complete visible state, `sequence`, `serverTime`, deadlines |
 | Server → client | `market:batch` | Ordered public changes, start/end sequence, `serverTime` |
@@ -358,6 +359,7 @@ All commands use runtime validation. The server derives player identity from the
 | Server → client | `news:update` | Source event ID, facts, copy, narration status |
 | Server → client | `presence:update` | Connection/readiness status |
 | Server → client | `round:ended` | Immutable results and settlement sequence |
+| Server → client | `reaction:published` | Transient ID, room/round, sender, approved reaction, server time |
 | Server → client | `command:error` | Stable error code, safe message, optional `requestId` |
 
 Every command receives an acknowledgement carrying its request ID and outcome. Public batches contain a complete sequence envelope even when some event details are private; private holdings/order details are delivered only to their owner. Leaderboard portfolio totals and executed trade activity are public within the room.
@@ -408,6 +410,16 @@ Opened snapshots add `openingAssets`, the four asset descriptions and initial pr
 
 The browser builds each asset's chart from its frozen initial point and executed fills only, using elapsed round time. Applied news supplies event markers independently of the price line. Reconnect replaces the chart history from the authorized snapshot, including fills older than the 30-fill recent tape. Watchlist changes compare the last trade with the frozen opening price; bid, ask, and reference prices remain separately labeled. Asset selection controls the chart, protected ticket, and actual covered depth together.
 
+### Preset reaction delivery (ticket #16 stage)
+
+The fixed catalog is `big-roar` (“Big roar”), `tiny-arms-big-gains` (“Tiny arms, big gains”), and `meteor-incoming` (“Meteor incoming”). `reaction:send` is exactly `{ requestId, reactionId }`, with a canonical UUID request ID. The subscription supplies the room and the authenticated session supplies the player. Extra fields, free text and unapproved identifiers fail with `INVALID_REQUEST`.
+
+Authorized members may react in the lobby, countdown, open and terminal views. The owned serialized path revalidates sender and recipients against current sessions and membership, without rebuilding market snapshots. Acceptance requires at least 1,000ms since that player's previous accepted reaction across all sockets, with no burst. Rejected attempts do not extend cooldown; reconnect does not reset it. Cooldowns expire independently of socket removal. Ownership/database failure prevents publication.
+
+`reaction:published` is exactly `{ id, code, roundId, playerId, reactionId, serverTime }`: a server-generated UUID, room code, current round UUID or null, authenticated sender UUID, approved identifier and integer server timestamp. It contains no command request ID, arbitrary text, private state or credentials. An acceptance is `{ requestId, publishedId }`. Safe errors are `{ error, message, requestId? }` with `INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `ROOM_NOT_FOUND`, `RATE_LIMITED` or `SERVICE_UNAVAILABLE`.
+
+Reactions are transient: request IDs correlate acknowledgements, not durable receipts. Do not buffer offline sends, automatically retry timeouts, or replay missed reactions after reconnect/restart. The browser reports an uncertain timeout, validates room/round and connection context, deduplicates publication IDs, and clears transients on context change. Reaction traffic never advances market cursors, establishes trading freshness, or changes pending orders, balances, marks or results. No reaction writes market events, batches, orders, trades or results.
+
 ### Recovery behavior
 
 - The browser reconnects automatically with backoff, then requests a fresh snapshot before enabling trades.
@@ -416,7 +428,6 @@ The browser builds each asset's chart from its frozen initial point and executed
 - Capture the snapshot at sequence N and deliver only subsequent buffered batches after it, avoiding a subscribe/snapshot race.
 - After restart, rebuild from committed data and process overdue scheduled events in due-time order before accepting commands. If closing time has passed, process events due strictly before close, then settle. Server outages do not extend the round.
 - Use a database ownership lock to prevent two game processes from operating the same room. Loss of ownership or database availability disables writes and trading until safe recovery.
-
 
 ## 10. Scheduled events and AI narration
 

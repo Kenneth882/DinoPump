@@ -38,3 +38,12 @@ the shared test PostgreSQL instance. Required concurrent clients/processors run
 explicitly within tests. Use `pnpm db:verify`; never point these tests at development
 or production data. See [ticket #13 evidence](../../docs/validation/ticket-13-recovery.md)
 for service acceptance coverage and client/release limitations.
+
+`reactions.database.test.ts` uses real Socket.IO and synthetic PostgreSQL with a
+controlled authoritative clock. It checks approved payloads, sender attribution,
+player-wide cooldowns across sockets/reconnect (999ms versus 1,000ms), independent
+players, sender/recipient expiry, removed membership, expired rooms, and database
+ownership failure. Reaction-only sends preserve both authorized snapshots and all
+market/history/result records before and after closing (AC-05/10/11). The
+scheduler interval is held during these focused cases; scheduler/recovery suites
+continue to exercise normal process timing.

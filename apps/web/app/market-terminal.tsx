@@ -2,6 +2,7 @@
 
 import { useState, type ComponentProps } from "react";
 import { PortfolioPanel, ProvisionalLeaderboard } from "./portfolio";
+import { PlayerActivity } from "./player-activity";
 import { TradeTicket } from "./trade-ticket";
 import type { LobbySnapshot, OrderSubmit } from "@dinopump/contracts";
 
@@ -407,6 +408,7 @@ export function MarketTerminal({
         players={players}
         playerId={playerId}
       />
+      <PlayerActivity round={round} players={players} />
     </section>
   );
 }

@@ -520,3 +520,21 @@ summary {
   color: #bbcbbf;
   font-variant-numeric: tabular-nums;
 }
+
+.room-reactions {
+  margin-top: 1rem;
+}
+.reaction-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.reaction-controls button {
+  max-width: 100%;
+  white-space: normal;
+}
+.reaction-list {
+  max-height: 12rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
