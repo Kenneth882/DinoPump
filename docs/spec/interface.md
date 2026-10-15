@@ -57,7 +57,7 @@ On narrow screens, use Market, Trade, Portfolio, and News tabs; keep countdown a
 - Disable trading when disconnected, resynchronizing, or outside the open round.
 - Mark stale quotes visibly after three seconds without fresh connectivity evidence.
 - Chart points come from executed trades plus the initial point. Event markers may appear without an accompanying trade-price move.
-- News facts appear immediately; delayed AI copy enhances the same news item without changing its timestamp or market effects.
+- News facts and complete authored commentary appear immediately. Preserve the authored headline, facts, commentary, numerical effects and original timestamp; add accepted generated commentary as a separate plain-text paragraph labeled “AI narration” within that same source news card. Show “As of m:ss” using the context capture time elapsed since round opening, so late narration describes historical context even after closing. New trades do not trigger rewrites. When AI is disabled, unavailable or yields no accepted output, retain the complete authored card without an empty AI section, persistent spinner or provider-error state.
 - Display bot counterparties in trade details and show player activity without exposing session credentials.
 
 ### Visual direction and accessibility

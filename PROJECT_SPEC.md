@@ -217,7 +217,7 @@ On narrow screens, use Market, Trade, Portfolio, and News tabs; keep countdown a
 - Disable trading when disconnected, resynchronizing, or outside the open round.
 - Mark stale quotes visibly after three seconds without fresh connectivity evidence.
 - Chart points come from executed trades plus the initial point. Event markers may appear without an accompanying trade-price move.
-- News facts appear immediately; delayed AI copy enhances the same news item without changing its timestamp or market effects.
+- News facts and complete authored commentary appear immediately. Preserve the authored headline, facts, commentary, numerical effects and original timestamp; add accepted generated commentary as a separate plain-text paragraph labeled “AI narration” within that same source news card. Show “As of m:ss” using the context capture time elapsed since round opening, so late narration describes historical context even after closing. New trades do not trigger rewrites. When AI is disabled, unavailable or yields no accepted output, retain the complete authored card without an empty AI section, persistent spinner or provider-error state.
 - Display bot counterparties in trade details and show player activity without exposing session credentials.
 
 ### Visual direction and accessibility
@@ -439,13 +439,15 @@ The scheduler applies effects exactly once, updates reference prices and quotes,
 
 ### Narrator contract
 
-Input includes only approved game facts: fictional asset names, catalog event description, actual reference-price effect, and separately labeled observed trade statistics. Exclude session secrets, raw user text, and unnecessary player data.
+AI narration connects the fictional event to affected assets' prices and aggregate executed trading activity. It provides useful recorded round context beyond a variation of authored wording. Inputs include only approved fictional asset/catalog facts, actual reference-price effects, last executed prices, and separately labeled aggregate observed trade statistics for affected assets. Exclude player names, individual trading judgments, leaderboard commentary, session secrets and raw user text.
 
-Output is schema-validated JSON with `headline` (maximum 100 characters) and `commentary` (maximum 400 characters). Use a playful dinosaur-news style. Do not invent completed trades, confuse quote changes with last-trade changes, issue real-world recommendations, or imply external facts.
+Use activity since the previous scheduled event, or since round opening for the first event. Freeze the context when the source event is applied, including its capture time and the activity window. Retries use that same context; later trades do not change it or trigger regeneration. Prior activity must not be described as a player response to an event that had not yet occurred. Reference-price effects and executed last-trade prices remain distinct.
+
+Output is schema-validated JSON with `headline` (maximum 100 characters) and `commentary` (maximum 400 characters). Use a clear newsreader voice with light dinosaur humor; understanding recorded market facts takes priority over jokes or sports-style excitement. Do not invent completed trades, confuse quote changes with last-trade changes, issue real-world recommendations, or imply external facts.
 
 - Default provider timeout: five seconds; at most two attempts per event.
-- Failed, invalid, unsafe, or unavailable output leaves the authored template in place.
-- Generated text is rendered as plain text, labeled “AI narration,” and tied to its source event.
+- Failed, invalid, unsafe, or unavailable output leaves the complete authored template in place, without an empty AI section, persistent spinner or provider-error state.
+- Accepted generated commentary appears as a separate plain-text paragraph labeled “AI narration” within the original source news card. Preserve its authored headline, facts, commentary, numerical effects and original timestamp; a generated headline never replaces the authored headline. Label the captured context “As of m:ss” using elapsed round time. Late publication, including after closing, remains commentary about that historical context and cannot modify results.
 - Retrying a job updates the same news item rather than producing a duplicate item.
 - The worker's database role can access narration inputs/jobs and write commentary; it cannot change balances, quotes, trades, reference prices, or results.
 - The LLM has no trading tools and cannot emit accepted game commands. No executable HTML or scripts are permitted in commentary.
@@ -495,6 +497,8 @@ Use pure engine tests for deterministic rules, database integration tests for at
 | AC-16 | Quote reservations never exceed bot resources, including near price limits and deliberately exhausted liquidity. Under rules 1.1, replacements preserve ledger totals; identical inputs reproduce quote IDs, generations, and tie ordering; exact integer arithmetic and invalid-state rejection preserve these guarantees. |
 | AC-17 | The complete join → ready → trade → event → reconnect → results journey passes in two browser sessions and at a 360px viewport. |
 | AC-18 | An eight-client load run meets the stated latency targets and an end-to-end round runs without an LLM key. |
+
+For tickets #17–18, AC-09/11/13/14/18 require evidence that narration uses affected assets and aggregate executed activity from the preceding event window (round opening for the first event), frozen at source-event application. Cover zero activity, first-event and window-boundary cases; retries and later trades must preserve the captured context. Verify exclusion of player names, individual judgments and leaderboard commentary, retention of all authored content, a separate labeled AI paragraph with its context time, and late publication after newer trades or closing without market/result changes. Disabled, missing, invalid or unavailable AI must leave complete authored news and uninterrupted play without an empty AI section or persistent spinner. These are required cases, not passing evidence.
 
 For ticket #1, content/contract tests and browser checks of the read-only introduction support AC-02, AC-05, AC-09, and AC-13 only partially. Verify exact default values and prices, invalid whole-baseline rejection, authored fallback templates, the actual service-to-web path, unavailable/retry states, and the production build without a running service. They do not establish round initialization, scheduling, narration fallback during play, or full live-round acceptance.
 
