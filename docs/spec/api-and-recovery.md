@@ -85,6 +85,12 @@ The browser validates both the snapshot event and the correlated acknowledgement
 
 Pending retries retain the exact original round, request ID, symbol, side, quantity and protection. Snapshot outcomes resolve recent requests; unchanged authenticated resubmission resolves requests outside the recent-outcome bound. An original participant may retrieve their recorded receipt after lobby reset or a subsequent round, but new stale-round attempts still fail and newcomers gain no historical access. A pending old receipt can confirm only its original request; it cannot replace a new round's visible resources or results.
 
+### Live terminal delivery (ticket #14 stage)
+
+Opened snapshots add `openingAssets`, the four asset descriptions and initial prices from the round's frozen configuration, and `priceHistory`, all committed trade-price points in sequence order. Each point contains `sequence`, `atMs` (the recorded execution time), `symbol`, and `priceCents`. Complete `market:batch` messages add only that batch's `priceHistory` points. These public points expose no order identities, protections, or private resources. Existing committed batches remain unchanged; the delivery projection derives points from recorded trade events.
+
+The browser builds each asset's chart from its frozen initial point and executed fills only, using elapsed round time. Applied news supplies event markers independently of the price line. Reconnect replaces the chart history from the authorized snapshot, including fills older than the 30-fill recent tape. Watchlist changes compare the last trade with the frozen opening price; bid, ask, and reference prices remain separately labeled. Asset selection controls the chart, protected ticket, and actual covered depth together.
+
 ### Recovery behavior
 
 - The browser reconnects automatically with backoff, then requests a fresh snapshot before enabling trades.

@@ -22,3 +22,18 @@ scope and deployment.
 For concurrent checkouts, set both `DINOPUMP_TEST_PROJECT` and
 `DINOPUMP_TEST_PORT` as shown in the lobby setup document. Run database and browser
 harnesses sequentially and reserve ports 3100/3101 exclusively for the browser run.
+
+`terminal.spec.ts` covers ticket #14 through the browser/snapshot seam: all four
+watchlist assets, covered depth, opening changes, idle event markers without
+invented trade points, exact multi-fill totals/averages, sell rejection, public
+bot counterparties, keyboard selection, 35 committed fills surviving the 30-fill
+tape window, reconnect/reload, stale connectivity, and a 360px viewport. Empty
+quote ladders and missing freshness are synthetic WebSocket response faults;
+ordinary depth, executions, charts, and recovery use the real service. It saves
+`terminal-desktop.png` and `terminal-360.png`. This supports AC-03/04/06/09/10/17;
+it does not establish full release/load acceptance or the later mobile tab UI.
+
+The harness discovers selected spec files and runs each with a fresh synthetic
+schema and clock. Each gets its own service process and active room, so multiple
+multiplayer suites cannot contend for the MVP's single room. Use `pnpm test:e2e`
+for all browser specs or `pnpm test:e2e tests/e2e/terminal.spec.ts` for this slice.

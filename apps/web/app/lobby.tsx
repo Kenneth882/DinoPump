@@ -8,7 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import { RoundResults } from "./round-results";
-import { TradeTicket } from "./trade-ticket";
+import { MarketTerminal } from "./market-terminal";
 import { io } from "socket.io-client";
 import {
   guestRequestSchema,
@@ -612,6 +612,7 @@ export function Lobby() {
           quoteUpdatedAtMs: batch.quoteUpdatedAtMs,
           totals: batch.totals,
           trades: [...visible.round.trades, ...batch.trades].slice(-30),
+          priceHistory: [...visible.round.priceHistory, ...batch.priceHistory],
           news: [...news.values()].sort((a, b) => a.sequence - b.sequence),
         },
       };
@@ -908,169 +909,40 @@ export function Lobby() {
             />
           )}
           {snapshot?.round && !snapshot.terminal && (
-            <section aria-labelledby="opening-heading">
-              <h3 id="opening-heading">Market and your resources</h3>
-              <p data-testid="round-remaining">
-                Round closes in {secondsUntil(snapshot.round.closesAt)} seconds.
-              </p>
-              <p>
-                Your cash:{" "}
-                <strong data-testid="own-cash">
-                  D$
-                  {(snapshot.round.portfolio.cashCents / 100).toLocaleString(
-                    "en-US",
-                    { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-                  )}
-                </strong>
-              </p>
-              <p>
-                Events move reference prices and executable quotes. Last-trade
-                prices change only after a trade. Orders use fixed protection
-                against the game liquidity bot.
-              </p>
-              <TradeTicket
-                round={snapshot.round}
-                serverNow={serverNow}
-                enabled={
-                  snapshot.status === "OPEN" &&
-                  connection === "Connected" &&
-                  serverNow >= snapshot.round.opensAt &&
-                  serverNow < snapshot.round.closesAt
-                }
-                pending={tradePending}
-                result={tradeResult}
-                message={tradeMessage}
-                onSubmit={(payload) => {
-                  if (
-                    snapshot.status !== "OPEN" ||
-                    trade.current ||
-                    connection !== "Connected" ||
-                    serverNow >= snapshot.round!.closesAt
-                  )
-                    return;
-                  trade.current = {
-                    payload: Object.freeze({ ...payload }),
-                    sending: false,
-                    retryAt: 0,
-                  };
-                  setTradePending(true);
-                  setTradeMessage("");
-                }}
-              />
-              <section aria-labelledby="activity-heading">
-                <h3 id="activity-heading">
-                  Public executions and portfolio totals
-                </h3>
-                {snapshot.round.trades.length ? (
-                  <ul aria-label="Executed trades">
-                    {snapshot.round.trades.map((t) => (
-                      <li key={t.sequence}>
-                        {t.symbol}: {t.quantity} units at D$
-                        {(t.priceCents / 100).toFixed(2)} · game liquidity bot
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No trades yet.</p>
-                )}
-                <ul aria-label="Portfolio totals">
-                  {snapshot.round.totals.map((total) => (
-                    <li key={total.playerId}>
-                      {
-                        snapshot.players.find(
-                          (p) => p.playerId === total.playerId,
-                        )?.displayName
-                      }
-                      : D${(total.portfolioValueCents / 100).toFixed(2)}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <ul
-                className="opening-assets"
-                aria-label="Current quotes and your holdings"
-              >
-                {snapshot.round.assets.map((asset) => (
-                  <li key={asset.symbol}>
-                    <h4>{asset.symbol}</h4>
-                    <p>
-                      Reference: D$
-                      {(asset.referencePriceCents / 100).toFixed(2)}
-                    </p>
-                    <p>
-                      Last trade: D${(asset.lastPriceCents / 100).toFixed(2)}
-                    </p>
-                    <p>
-                      Your units:{" "}
-                      {snapshot.round!.portfolio.holdings[asset.symbol]}
-                    </p>
-                    {(["bid", "ask"] as const).map((side) => (
-                      <div key={side}>
-                        <strong>{side === "bid" ? "Bids" : "Asks"}</strong>
-                        <ul>
-                          {snapshot
-                            .round!.quotes.filter(
-                              (quote) =>
-                                quote.symbol === asset.symbol &&
-                                quote.side === side,
-                            )
-                            .map((quote) => (
-                              <li key={quote.id}>
-                                D${(quote.priceCents / 100).toFixed(2)} ×{" "}
-                                {quote.quantity} units
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-              <section aria-labelledby="news-heading" className="daily-roar">
-                <h3 id="news-heading">The Daily Roar</h3>
-                {snapshot.round.news.length === 0 ? (
-                  <p>
-                    No news yet. The first market event arrives one minute into
-                    the round.
-                  </p>
-                ) : (
-                  <ol aria-label="Market news">
-                    {snapshot.round.news.map((item) => (
-                      <li key={item.sourceEventId} data-testid="news-item">
-                        <article>
-                          <h4>{item.headline}</h4>
-                          <p>{item.facts}</p>
-                          <p>{item.commentary}</p>
-                          <p>
-                            Authored game news ·{" "}
-                            <time
-                              dateTime={new Date(
-                                item.appliedAtMs,
-                              ).toISOString()}
-                            >
-                              {new Date(item.appliedAtMs).toLocaleTimeString(
-                                "en-US",
-                              )}
-                            </time>
-                          </p>
-                          <ul aria-label="Reference price effects">
-                            {item.effects.map((effect) => (
-                              <li key={effect.symbol}>
-                                {effect.symbol}:{" "}
-                                {effect.changeBps >= 0 ? "+" : ""}
-                                {effect.changeBps / 100}% reference effect · D$
-                                {(effect.beforeCents / 100).toFixed(2)} → D$
-                                {(effect.afterCents / 100).toFixed(2)}
-                              </li>
-                            ))}
-                          </ul>
-                        </article>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </section>
-            </section>
+            <MarketTerminal
+              key={snapshot.round.roundId}
+              round={snapshot.round}
+              players={snapshot.players}
+              roomCode={activeCode}
+              connection={connection}
+              secondsRemaining={secondsUntil(snapshot.round.closesAt)}
+              serverNow={serverNow}
+              enabled={
+                snapshot.status === "OPEN" &&
+                connection === "Connected" &&
+                serverNow >= snapshot.round.opensAt &&
+                serverNow < snapshot.round.closesAt
+              }
+              pending={tradePending}
+              result={tradeResult}
+              message={tradeMessage}
+              onSubmit={(payload) => {
+                if (
+                  snapshot.status !== "OPEN" ||
+                  trade.current ||
+                  connection !== "Connected" ||
+                  serverNow >= snapshot.round!.closesAt
+                )
+                  return;
+                trade.current = {
+                  payload: Object.freeze({ ...payload }),
+                  sending: false,
+                  retryAt: 0,
+                };
+                setTradePending(true);
+                setTradeMessage("");
+              }}
+            />
           )}
           <p>
             Share this code with friends. Up to eight guests can gather here.

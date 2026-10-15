@@ -8,7 +8,7 @@ import {
 import { z } from "zod";
 import { roundEndedSchema } from "./results.js";
 import { newsItemSchema } from "./news.js";
-import { assetSymbolSchema } from "./baseline.js";
+import { assetsSchema, assetSymbolSchema } from "./baseline.js";
 import { botQuoteSchema } from "./bot-quotes.js";
 
 export const avatarSchema = z.enum([
@@ -60,9 +60,17 @@ export const roomCommandOutcomeSchema = z.strictObject({
   status: z.enum(["LOBBY", "COUNTDOWN"]),
   roundId: z.uuid().nullable(),
 });
+export const tradePricePointSchema = z.strictObject({
+  sequence: z.number().int().positive(),
+  atMs: z.number().int().nonnegative(),
+  symbol: assetSymbolSchema,
+  priceCents: z.number().int().positive(),
+});
 export const openedRoundViewSchema = z.strictObject({
   roundId: z.uuid(),
   sequence: z.number().int().positive(),
+  openingAssets: assetsSchema,
+  priceHistory: z.array(tradePricePointSchema),
   opensAt: z.number().int().nonnegative(),
   closesAt: z.number().int().nonnegative(),
   assets: z
@@ -170,6 +178,7 @@ export const marketBatchSchema = z
     quotes: openedRoundViewSchema.shape.quotes,
     news: z.array(newsItemSchema),
     quoteUpdatedAtMs: z.number().int().nonnegative(),
+    priceHistory: z.array(tradePricePointSchema),
     trades: z.array(publicExecutionSchema),
     totals: publicTotalsSchema,
   })

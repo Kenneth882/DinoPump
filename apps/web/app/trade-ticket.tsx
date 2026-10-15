@@ -13,6 +13,8 @@ const money = (cents: number) =>
   `D$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export function TradeTicket({
   round,
+  symbol,
+  onSelectSymbol,
   serverNow,
   enabled,
   pending,
@@ -21,6 +23,8 @@ export function TradeTicket({
   onSubmit,
 }: {
   round: RoundView;
+  symbol: OrderSubmit["symbol"];
+  onSelectSymbol: (symbol: OrderSubmit["symbol"]) => void;
   serverNow: number;
   enabled: boolean;
   pending: boolean;
@@ -28,7 +32,6 @@ export function TradeTicket({
   message: string;
   onSubmit: (request: OrderSubmit) => void;
 }) {
-  const [symbol, setSymbol] = useState<OrderSubmit["symbol"]>("FERN");
   const [side, setSide] = useState<OrderSubmit["side"]>("buy");
   const [quantity, setQuantity] = useState("1");
   const [customProtection, setCustomProtection] = useState("");
@@ -117,7 +120,7 @@ export function TradeTicket({
             value={symbol}
             disabled={pending}
             onChange={(e) => {
-              setSymbol(e.target.value as OrderSubmit["symbol"]);
+              onSelectSymbol(e.target.value as OrderSubmit["symbol"]);
               setCustomProtection("");
             }}
           >
@@ -219,7 +222,7 @@ export function TradeTicket({
             <p>
               {result.filledQuantity} units executed; {result.remainingQuantity}{" "}
               unfilled. Executed total: {money(result.totalValueCents)}. Average
-              fill price:{" "}
+              fill price (rounded to cents):{" "}
               {result.averagePrice
                 ? money(
                     result.averagePrice.numeratorCents /
@@ -227,6 +230,13 @@ export function TradeTicket({
                   )
                 : "No fills"}
               .
+              {result.averagePrice && (
+                <span>
+                  {" "}
+                  Exact average: {result.averagePrice.numeratorCents}/
+                  {result.averagePrice.denominatorUnits} cents per unit.
+                </span>
+              )}
             </p>
             <p>
               Cash after this order: {money(result.portfolio.cashCents)}.{" "}

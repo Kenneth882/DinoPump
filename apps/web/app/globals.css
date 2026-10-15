@@ -258,3 +258,198 @@ button:disabled {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The terminal keeps numeric content readable as depth and news grow. */
+main {
+  max-width: 100rem;
+}
+.market-terminal {
+  margin-top: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.terminal-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem;
+  background: #101c16;
+  border-block: 1px solid #f2cb7a;
+  font-size: 0.85rem;
+}
+.terminal-columns {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.7fr) minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin-block: 1rem;
+}
+.terminal-columns > *,
+.terminal-center > *,
+.terminal-right > * {
+  min-width: 0;
+}
+.terminal-panel {
+  border: 1px solid #385342;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #12221b;
+  overflow-wrap: anywhere;
+}
+.terminal-panel h3 {
+  margin-top: 0;
+  color: #f2cb7a;
+}
+.terminal-center,
+.terminal-right {
+  display: grid;
+  gap: 1rem;
+}
+.terminal-right .trade-ticket {
+  margin: 0;
+  background: #201f17;
+}
+.watchlist {
+  display: grid;
+  gap: 0.75rem;
+}
+.watchlist button {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: left;
+  background: #1b2b20;
+  color: #edf6ee;
+  border: 1px solid #385342;
+  font-size: 0.85rem;
+}
+.watchlist button strong {
+  color: #b3ec8d;
+  font-size: 1.1rem;
+}
+.watchlist button[aria-pressed="true"] {
+  border-color: #f2cb7a;
+  box-shadow: inset 3px 0 #f2cb7a;
+}
+.gain {
+  color: #b3ec8d;
+}
+.loss {
+  color: #ffce98;
+}
+.muted {
+  color: #bbcbbf;
+  font-size: 0.85rem;
+}
+.market-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.market-prices p {
+  margin: 0.5rem 0;
+}
+.market-prices strong {
+  display: block;
+}
+.market-terminal svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.market-terminal svg text {
+  fill: #bbcbbf;
+  font:
+    12px system-ui,
+    sans-serif;
+}
+.chart-grid {
+  stroke: #385342;
+}
+.chart-event {
+  stroke: #f2cb7a;
+  stroke-dasharray: 4 5;
+  opacity: 0.7;
+}
+.chart-price {
+  fill: none;
+  stroke: #b3ec8d;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.chart-point {
+  fill: #f2cb7a;
+}
+.depth-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.depth-sides ol,
+.trade-tape {
+  padding: 0;
+  list-style: none;
+}
+.depth-sides li {
+  display: grid;
+  gap: 0.35rem;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid #385342;
+  font-size: 0.85rem;
+}
+.trade-tape,
+.price-history {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.trade-tape li {
+  padding-block: 0.75rem;
+  border-bottom: 1px solid #385342;
+  font-size: 0.85rem;
+}
+.market-terminal .daily-roar {
+  margin-top: 0;
+}
+summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  color: #f2cb7a;
+}
+:focus-visible {
+  outline: 3px solid #f2cb7a;
+  outline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .terminal-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .watchlist {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 540px) {
+  .market-terminal {
+    margin-inline: -0.5rem;
+  }
+  .terminal-panel {
+    padding: 0.75rem;
+  }
+  .terminal-bar {
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+  .watchlist button {
+    padding: 0.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
