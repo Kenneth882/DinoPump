@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { CommentaryWorker } from "../../apps/commentary-worker/src/worker.js";
+import { FactCheckedNarrator } from "../../apps/commentary-worker/src/narrator.js";
+import { OpenAIProvider } from "../../apps/commentary-worker/src/openai.js";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { isolatedDatabase } from "../helpers/database.js";
@@ -79,6 +81,216 @@ it("keeps complete authored news without a provider (AC-09/13/14)", async () => 
   });
   expect(fallback.news[0]?.narration).toBeUndefined();
   expect(await worker.processOne()).toBe(false);
+});
+
+it.each([
+  ["malformed JSON", "{broken"],
+  [
+    "overlength headline",
+    JSON.stringify({
+      headline: "x".repeat(101),
+      commentary: "Recorded activity.",
+    }),
+  ],
+  [
+    "overlength commentary",
+    JSON.stringify({ headline: "Report", commentary: "x".repeat(401) }),
+  ],
+  [
+    "misleading trades",
+    JSON.stringify({
+      headline: "FERN report",
+      commentary: "Players bought 900 units in response to the event.",
+    }),
+  ],
+  [
+    "unsafe script",
+    JSON.stringify({
+      headline: "Report",
+      commentary: "<script>buy()</script>",
+    }),
+  ],
+  [
+    "real-world advice",
+    JSON.stringify({
+      headline: "Report",
+      commentary: "Invest your real savings now.",
+    }),
+  ],
+])(
+  "preserves exact authored news and gameplay for %s through the provider adapter (AC-09/13)",
+  async (_label, raw) => {
+    const { host, code, opening } = await openRound();
+    now += 60000;
+    await store.processDue();
+    const before = (await store.snapshot(host.secret, code)).round!;
+    const history = await readOpenedRound(database.pool, opening.roundId);
+    const provider = new OpenAIProvider("synthetic_only", "stub-v1", async () =>
+      Response.json({
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: raw }],
+          },
+        ],
+      }),
+    );
+    await new CommentaryWorker(
+      database.pool,
+      new FactCheckedNarrator(provider),
+      () => now,
+    ).processOne();
+    await store.processCommentary();
+    const after = (await store.snapshot(host.secret, code)).round!;
+    expect(after.news[0]).toEqual({
+      ...before.news[0],
+      narrationStatus: "fallback",
+      narrationProvenance: expect.objectContaining({
+        provider: "openai",
+        model: "stub-v1",
+        promptVersion: "context-passages-v1",
+        validationStatus: "invalid",
+      }),
+    });
+    expect(await readOpenedRound(database.pool, opening.roundId)).toEqual(
+      history,
+    );
+    expect(
+      await new CommentaryWorker(
+        database.pool,
+        new FactCheckedNarrator(provider),
+        () => now,
+      ).processOne(),
+    ).toBe(false);
+  },
+);
+
+it("publishes validated frozen activity after later trades and closing with local provenance (AC-09/11/13)", async () => {
+  const { host, code, opening } = await openRound();
+  now += 1000;
+  await store.submitOrder(host.secret, code, {
+    roundId: opening.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 2,
+    protectionPriceCents: 10000,
+  });
+  now = opening.opensAt + 60000;
+  await store.processDue();
+  const source = (await store.snapshot(host.secret, code)).round!.news[0]!;
+  let respond: ((raw: string) => void) | undefined;
+  let started: (() => void) | undefined;
+  const called = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const narrator = new FactCheckedNarrator({
+    provider: "synthetic",
+    model: "stub-v1",
+    async generate(request) {
+      expect(request.context.assets[0]?.activity).toEqual({
+        fillCount: 1,
+        boughtUnits: 2,
+        soldUnits: 0,
+        totalValueCents: 8080,
+      });
+      started!();
+      return new Promise<string>((resolve) => {
+        respond = resolve;
+      });
+    },
+  });
+  // Keep the lease valid while the independent game clock moves to closing.
+  const attemptTime = now;
+  const processing = new CommentaryWorker(
+    database.pool,
+    narrator,
+    () => attemptTime,
+  ).processOne();
+  await called;
+  now += 1000;
+  await store.submitOrder(host.secret, code, {
+    roundId: opening.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 3,
+    protectionPriceCents: 10000,
+  });
+  now = opening.closesAt;
+  await store.processDue();
+  const before = await store.snapshot(host.secret, code);
+  const history = await readOpenedRound(database.pool, opening.roundId);
+  respond!(
+    JSON.stringify({
+      headline: "FERN: the recorded context",
+      commentary:
+        "FERN reference: D$40.04 to D$42.04 (+500 bps). Last executed price: D$40.40. Before this event: 1 fills, 2 units bought, 0 sold, D$80.80 executed. The news desk keeps its claws on the facts.",
+    }),
+  );
+  await processing;
+  await store.processCommentary();
+  const after = await store.snapshot(host.secret, code);
+  expect(after.terminal).toEqual(before.terminal);
+  expect(await readOpenedRound(database.pool, opening.roundId)).toEqual(
+    history,
+  );
+  expect(after.round!.news[0]).toMatchObject({
+    ...source,
+    narrationStatus: "published",
+    narration: {
+      capturedAtMs: source.appliedAtMs,
+      elapsedMs: 60000,
+      commentary: expect.stringContaining("2 units bought"),
+    },
+    narrationProvenance: {
+      provider: "synthetic",
+      model: "stub-v1",
+      promptVersion: "context-passages-v1",
+      validationStatus: "accepted",
+    },
+  });
+});
+
+it("bounds actual adapter outages to two persisted attempts across worker restarts (AC-13)", async () => {
+  const { host, code, opening } = await openRound();
+  now += 60000;
+  await store.processDue();
+  let calls = 0;
+  const requests: unknown[] = [];
+  const provider = new OpenAIProvider(
+    "synthetic",
+    "stub-v1",
+    async (_url, init) => {
+      calls++;
+      requests.push(JSON.parse(String(init?.body)));
+      return new Response("private outage detail", { status: 503 });
+    },
+  );
+  const run = () =>
+    new CommentaryWorker(
+      database.pool,
+      new FactCheckedNarrator(provider),
+      () => now,
+    ).processOne();
+  expect(await run()).toBe(true);
+  expect(await run()).toBe(false);
+  now += 1000;
+  await store.submitOrder(host.secret, code, {
+    roundId: opening.roundId,
+    requestId: randomUUID(),
+    symbol: "FERN",
+    side: "buy",
+    quantity: 3,
+    protectionPriceCents: 10000,
+  });
+  expect(await run()).toBe(true);
+  now += 1000;
+  expect(await run()).toBe(false);
+  expect(calls).toBe(2);
+  expect(requests[1]).toEqual(requests[0]);
 });
 
 const accepted = {
@@ -472,12 +684,13 @@ it("bounds a hung provider call without blocking market closing (AC-11/13)", asy
   await store.processCommentary();
   const worker = new CommentaryWorker(
     database.pool,
-    {
-      ...accepted,
-      narrate() {
+    new FactCheckedNarrator({
+      provider: "synthetic",
+      model: "hung-adapter",
+      generate() {
         return new Promise(() => {});
       },
-    },
+    }),
     () => now,
   );
   const attempt = worker.processOne();
@@ -532,7 +745,13 @@ it("runs the separate process using a real restricted login without an AI key (A
     process.execPath,
     ["--import", "tsx", "apps/commentary-worker/src/index.ts"],
     {
-      env: { ...process.env, COMMENTARY_DATABASE_URL: url.href },
+      env: {
+        ...process.env,
+        COMMENTARY_DATABASE_URL: url.href,
+        COMMENTARY_PROVIDER: "",
+        OPENAI_API_KEY: "",
+        COMMENTARY_MODEL: "",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

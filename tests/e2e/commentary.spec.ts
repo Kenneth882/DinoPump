@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { expect, test } from "@playwright/test";
 import { CommentaryWorker } from "../../apps/commentary-worker/src/worker.js";
+import { FactCheckedNarrator } from "../../apps/commentary-worker/src/narrator.js";
 import { lobbySnapshotSchema } from "../../packages/contracts/dist/index.js";
 
 test("authored news stays complete without AI; late narration enriches the same card on desktop and mobile (AC-09/11/13/14/18)", async ({
@@ -71,26 +72,13 @@ test("authored news stays complete without AI; late narration enriches the same 
     );
     const worker = new CommentaryWorker(
       pool,
-      {
+      new FactCheckedNarrator({
         provider: "synthetic",
         model: "browser-stub",
-        promptVersion: "test-v1",
-        async narrate() {
-          return {
-            status: "accepted",
-            headline: "Historical herd report",
-            commentary:
-              "Recorded activity belongs to the preceding window. The herd keeps its history.",
-            provenance: {
-              provider: "synthetic",
-              model: "browser-stub",
-              promptVersion: "test-v1",
-              durationMs: 0,
-              validationStatus: "accepted",
-            },
-          };
+        async generate(request) {
+          return JSON.stringify(request.options[1]);
         },
-      },
+      }),
       () => Date.now() + 121000,
     );
     await worker.processOne();
@@ -135,6 +123,9 @@ test("authored news stays complete without AI; late narration enriches the same 
       );
       await expect(target.getByTestId("ai-narration")).toContainText(
         "As of 2:",
+      );
+      await expect(target.getByTestId("ai-narration")).toContainText(
+        "Before this event:",
       );
       await expect(target).toContainText(source.facts);
       await expect(target).toContainText(source.commentary);

@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { CommentaryWorker } from "./worker.js";
+import { configuredNarrator } from "./openai.js";
 
 // Core gameplay never imports this entry point or waits for this process.
 const connectionString = process.env.COMMENTARY_DATABASE_URL;
@@ -27,8 +28,8 @@ try {
     "Worker database access check failed; see docs/commentary.md",
   );
 }
-// The optional, fact-checking provider adapter belongs to ticket 18.
-const worker = new CommentaryWorker(pool);
+const narrator = configuredNarrator(process.env);
+const worker = new CommentaryWorker(pool, narrator);
 let stopped = false;
 let wake: (() => void) | undefined;
 for (const signal of ["SIGINT", "SIGTERM"] as const)
@@ -37,7 +38,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
     wake?.();
   });
 console.info(
-  JSON.stringify({ event: "commentary.started", provider: "disabled" }),
+  JSON.stringify({
+    event: "commentary.started",
+    provider: narrator?.provider ?? "disabled",
+  }),
 );
 try {
   while (!stopped) {
