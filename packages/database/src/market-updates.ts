@@ -8,6 +8,21 @@ import {
 } from "@dinopump/contracts";
 import { startEngineRound, reduceEngineBatch } from "@dinopump/engine";
 
+function tradePricePoints(batch: import("@dinopump/contracts").EngineBatch) {
+  return batch.events.flatMap((event) =>
+    event.type === "TradeExecuted"
+      ? [
+          {
+            sequence: event.sequence,
+            atMs: event.occurredAtMs,
+            symbol: event.payload.symbol,
+            priceCents: event.payload.priceCents,
+          },
+        ]
+      : [],
+  );
+}
+
 /** The caller has already verified history and authorized the snapshot owner. */
 export async function readMarketUpdates(
   client: PoolClient,
@@ -41,6 +56,7 @@ export async function readMarketUpdates(
         endSequence,
         serverTime,
         ...row.public_view,
+        priceHistory: tradePricePoints(batch),
         ...(batch.command.type === "SettleRound" ? { quoteUpdatedAtMs } : {}),
         news: news.filter(
           (item) =>
@@ -79,6 +95,7 @@ export async function readMarketUpdates(
         endSequence: state.sequence,
         serverTime,
         ...view,
+        priceHistory: tradePricePoints(batch),
         news: news.filter(
           (item) =>
             item.sequence >= startSequence && item.sequence <= state.sequence,

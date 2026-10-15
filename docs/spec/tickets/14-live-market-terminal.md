@@ -34,3 +34,29 @@ Browser tests compare watchlist/depth/tape/chart with authoritative snapshots ac
 Blocked by: #12.
 
 - [#12](https://github.com/Kenneth882/DinoPump/issues/12): Resynchronize clients and reconcile pending trades
+
+## Local implementation evidence — October 14, 2026
+
+The terminal uses frozen opening metadata, full committed trade-price history,
+complete synchronized batches, and the existing durable protected ticket. Browser
+snapshot comparisons cover watchlist changes, covered depth, chart sequences,
+execution timestamps/prices, public tape, idle events, selection, reconnect/reload,
+and the 30-fill tape boundary. Stale/empty-depth response faults and keyboard use
+are covered at desktop and 360px widths.
+
+- Lint, formatting, and typechecking passed; 196 unit/service tests passed.
+- `pnpm db:verify`: 100 database/recovery tests passed.
+- `pnpm test:e2e`: all six browser tests passed, including the existing full lobby
+  journey and the new terminal journey. Each spec uses an isolated room/schema.
+- All non-web packages built. `pnpm --filter @dinopump/web exec next build --webpack`
+  produced the production web artifact successfully.
+- `pnpm check` did not finish its default Turbopack production build: compilation
+  stalled, including after preserving the old cache and retrying with a fresh
+  cache. Those build attempts were stopped. The Webpack build is separate evidence,
+  not a passing default `pnpm check` run.
+- Standards and Spec reviews have no remaining findings. The Spec review's initial
+  test-coverage finding was fixed and the strengthened browser journey passed.
+
+This evidence supports the ticket's AC-03/04/06/09/10/17 contributions. It does not
+establish full release acceptance, load targets, or completion of the subsequent
+portfolio, activity, and mobile-tab tickets.

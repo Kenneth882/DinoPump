@@ -531,6 +531,18 @@ export class LobbyStore {
           ? {
               roundId: engine.round.roundId,
               sequence: engine.sequence,
+              openingAssets: engine.round.config.assets,
+              priceHistory: (
+                await client.query(
+                  "SELECT sequence,occurred_at_ms,payload FROM game_events WHERE round_id=$1 AND type='TradeExecuted' ORDER BY sequence",
+                  [engine.round.roundId],
+                )
+              ).rows.map((row) => ({
+                sequence: Number(row.sequence),
+                atMs: Number(row.occurred_at_ms),
+                symbol: row.payload.symbol,
+                priceCents: row.payload.priceCents,
+              })),
               opensAt: engine.round.opensAtMs,
               closesAt: engine.round.closesAtMs,
               ...latestView,

@@ -184,6 +184,8 @@ During the durable-trading stage (ticket #10), the availability notice reads “
 
 During the closing/results stage (ticket #11), the availability notice reads “Ready your herd, then buy and sell protected trades against the game liquidity bot.” Closing adds immutable shared ranks, winner/tied winners, final value/profit/return, owned remaining cash/holdings, and a compact committed-event timeline. The host can return to the lobby and start a fresh round. An aborted round shows a safe explanation with no winner. The full terminal remains a later slice.
 
+During the live-terminal stage (ticket #14), the synchronized round view uses a desktop watchlist/chart-news/trade-depth layout. It adds frozen opening changes, actual covered depth, a recent fill tape, and an elapsed-time chart of opening plus all executed fills. News markers never add trade points. Keyboard selection connects the watchlist, chart, and protected ticket; quote freshness and reconnect pauses remain visible. Portfolio and activity expansion and the complete narrow-screen tab journey are delivered by their subsequent tickets.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby
@@ -397,6 +399,12 @@ Subscription, snapshot capture, mutations and publication share the owned queue.
 The browser validates both the snapshot event and the correlated acknowledgement, ignores acknowledgements from previous connection attempts, and stays paused until a snapshot covers the newest observed facts for its round. Missing or reordered sequence ranges and changed round IDs request another snapshot; fully covered duplicate batches have no effect. Lifecycle evidence invalidates earlier snapshot captures; recovery then requires a newly correlated read covering that round's highest observed cursor. Retain validated pending receipts received during resynchronization until authorized state is complete. A private order receipt cannot render newer resources ahead of its complete public batch. Three seconds without authorized freshness evidence marks quotes stale and pauses trading; transport failures and explicit server disconnects reconnect with bounded backoff. Countdown time continues from the most recent server clock and frozen deadlines while connectivity recovers.
 
 Pending retries retain the exact original round, request ID, symbol, side, quantity and protection. Snapshot outcomes resolve recent requests; unchanged authenticated resubmission resolves requests outside the recent-outcome bound. An original participant may retrieve their recorded receipt after lobby reset or a subsequent round, but new stale-round attempts still fail and newcomers gain no historical access. A pending old receipt can confirm only its original request; it cannot replace a new round's visible resources or results.
+
+### Live terminal delivery (ticket #14 stage)
+
+Opened snapshots add `openingAssets`, the four asset descriptions and initial prices from the round's frozen configuration, and `priceHistory`, all committed trade-price points in sequence order. Each point contains `sequence`, `atMs` (the recorded execution time), `symbol`, and `priceCents`. Complete `market:batch` messages add only that batch's `priceHistory` points. These public points expose no order identities, protections, or private resources. Existing committed batches remain unchanged; the delivery projection derives points from recorded trade events.
+
+The browser builds each asset's chart from its frozen initial point and executed fills only, using elapsed round time. Applied news supplies event markers independently of the price line. Reconnect replaces the chart history from the authorized snapshot, including fills older than the 30-fill recent tape. Watchlist changes compare the last trade with the frozen opening price; bid, ask, and reference prices remain separately labeled. Asset selection controls the chart, protected ticket, and actual covered depth together.
 
 ### Recovery behavior
 

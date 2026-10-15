@@ -2,6 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  ...(process.env.DINOPUMP_E2E_FILE
+    ? { testMatch: process.env.DINOPUMP_E2E_FILE }
+    : {}),
+  outputDir: process.env.DINOPUMP_E2E_FILE
+    ? `test-results/${process.env.DINOPUMP_E2E_FILE}`
+    : "test-results",
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
