@@ -1,6 +1,9 @@
 import type { RoundEnded } from "@dinopump/contracts";
-const money = (cents: number) =>
-  `D$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import {
+  PortfolioPanel,
+  PortfolioChange,
+  formatDinoDollars as money,
+} from "./portfolio";
 export function RoundResults({
   result,
   host,
@@ -32,48 +35,39 @@ export function RoundResults({
             {result.rankings.map((r) => (
               <li key={r.playerId}>
                 <strong>
-                  Rank {r.rank} · {r.displayName}
+                  Rank {r.rank}
+                  {result.rankings.filter((entry) => entry.rank === r.rank)
+                    .length > 1
+                    ? " (shared)"
+                    : ""}{" "}
+                  · {r.displayName}
                 </strong>
                 <span>Final value: {money(r.portfolioValueCents)}</span>
-                <span>
-                  {r.profitCents >= 0 ? "Profit" : "Loss"}:{" "}
-                  {money(r.profitCents)} · Return: {r.returnPercent.toFixed(2)}%
-                </span>
+                <PortfolioChange {...r} />
               </li>
             ))}
           </ol>
-          <h4>Your final portfolio</h4>
-          <p>
-            Remaining cash:{" "}
-            <strong data-testid="final-cash">
-              {money(result.portfolio.cashCents)}
-            </strong>
-          </p>
-          <ul aria-label="Your final holdings">
-            {Object.entries(result.portfolio.holdings).map(
-              ([symbol, quantity]) => (
-                <li key={symbol}>
-                  {symbol}: {quantity} units · Frozen mark{" "}
-                  {money(result.marks[symbol as keyof typeof result.marks])}
-                </li>
-              ),
-            )}
-          </ul>
-          <p>
-            Your remaining holdings are valued at frozen marks. They were not
-            sold.
-          </p>
+          <PortfolioPanel
+            portfolio={result.portfolio}
+            total={result.rankings.find((r) => r.playerId === result.playerId)!}
+            marks={result.marks}
+            frozen
+          />
           <h4>Major market events</h4>
           {result.timeline.length ? (
-            <ol aria-label="Round event timeline">
+            <ol aria-label="Round event timeline" className="result-timeline">
               {result.timeline.map((item) => (
                 <li key={item.sourceEventId}>
                   <strong>{item.headline}</strong>
+                  <time dateTime={new Date(item.dueAtMs).toISOString()}>
+                    {new Date(item.dueAtMs).toLocaleTimeString("en-US")}
+                  </time>
                   <p>{item.facts}</p>
                   {item.effects.map((e) => (
                     <p key={e.symbol}>
                       {e.symbol}: {e.changeBps >= 0 ? "+" : ""}
-                      {e.changeBps / 100}% reference effect
+                      {e.changeBps / 100}% reference effect ·{" "}
+                      {money(e.beforeCents)} → {money(e.afterCents)}
                     </p>
                   ))}
                 </li>

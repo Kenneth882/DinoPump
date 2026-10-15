@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ComponentProps } from "react";
+import { PortfolioPanel, ProvisionalLeaderboard } from "./portfolio";
 import { TradeTicket } from "./trade-ticket";
 import type { LobbySnapshot, OrderSubmit } from "@dinopump/contracts";
 
@@ -145,12 +146,14 @@ function PriceChart({
 export function MarketTerminal({
   round,
   players,
+  playerId,
   roomCode,
   connection,
   secondsRemaining,
   ...ticket
 }: Omit<ComponentProps<typeof TradeTicket>, "symbol" | "onSelectSymbol"> & {
   players: LobbySnapshot["players"];
+  playerId: string;
   roomCode: string;
   connection: string;
   secondsRemaining: number;
@@ -388,40 +391,22 @@ export function MarketTerminal({
               ))}
             </div>
           </section>
-          <section className="terminal-panel" aria-label="Your resources">
-            <h3>Your resources</h3>
-            <p>
-              Your cash:{" "}
-              <strong data-testid="own-cash">
-                {money(round.portfolio.cashCents)}
-              </strong>
-            </p>
-            <ul aria-label="Current quotes and your holdings">
-              {round.assets.map((a) => (
-                <li key={a.symbol}>
-                  {a.symbol} · Your units: {round.portfolio.holdings[a.symbol]}
-                </li>
-              ))}
-            </ul>
-            {Object.values(round.portfolio.holdings).every(
-              (units) => units === 0,
-            ) && <p>No holdings yet.</p>}
-          </section>
+          <PortfolioPanel
+            portfolio={round.portfolio}
+            total={round.totals.find((t) => t.playerId === playerId)!}
+            marks={
+              Object.fromEntries(
+                round.assets.map((a) => [a.symbol, a.lastPriceCents]),
+              ) as Record<OrderSubmit["symbol"], number>
+            }
+          />
         </div>
       </div>
-      <section
-        className="terminal-panel"
-        aria-label="Provisional portfolio totals"
-      >
-        <h3>Provisional portfolio totals</h3>
-        <ul aria-label="Portfolio totals">
-          {round.totals.map((total) => (
-            <li key={total.playerId}>
-              {playerName(total.playerId)}: {money(total.portfolioValueCents)}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <ProvisionalLeaderboard
+        totals={round.totals}
+        players={players}
+        playerId={playerId}
+      />
     </section>
   );
 }

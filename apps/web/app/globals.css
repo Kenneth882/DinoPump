@@ -453,3 +453,70 @@ summary {
     scroll-behavior: auto !important;
   }
 }
+
+.portfolio-panel {
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-panel > p strong {
+  display: block;
+  font-size: 1.2rem;
+}
+.portfolio-change {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.9rem;
+}
+.portfolio-change p {
+  margin: 0.25rem 0;
+}
+.portfolio-holdings,
+.leaderboard-rows {
+  padding: 0;
+  list-style: none;
+}
+.portfolio-holdings li {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #385342;
+  font-size: 0.85rem;
+}
+.portfolio-holdings li > strong {
+  color: #b3ec8d;
+}
+.leaderboard-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.75rem;
+}
+.leaderboard-rows > li {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  border: 1px solid #385342;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.leaderboard-rows > li > strong {
+  color: #f2cb7a;
+}
+.result-timeline {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.result-timeline > li {
+  padding: 1rem;
+  background: #12221b;
+  border: 1px solid #385342;
+  border-radius: 0.75rem;
+}
+.result-timeline time {
+  display: block;
+  margin-top: 0.5rem;
+  color: #bbcbbf;
+  font-variant-numeric: tabular-nums;
+}
