@@ -97,6 +97,11 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       member.roundId = snapshot.round?.roundId;
       member.roundSequence = snapshot.round?.sequence;
       if (snapshot.sequence !== member.sequence) {
+        // Publication is committed by this owner before any delivery. Reconnect
+        // recovers the same item from the snapshot; repeated messages are idempotent.
+        for (const item of snapshot.round?.news ?? [])
+          if (item.narrationStatus !== "pending")
+            socket.emit("news:update", item);
         socket.emit("room:snapshot", snapshot);
         socket.emit("presence:update", snapshot);
         member.sequence = snapshot.sequence;
@@ -355,6 +360,21 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       for (const event of applied)
         console.info(JSON.stringify({ event: "scheduler.applied", ...event }));
     })
+      .then(() =>
+        serial(async () => {
+          // Market changes have already committed and reached clients. A failed
+          // optional publication cannot roll them back or disconnect the room.
+          let publishedCount = 0;
+          try {
+            publishedCount = await options.store.processCommentary();
+          } catch {
+            console.error(
+              JSON.stringify({ event: "commentary.publication_failed" }),
+            );
+          }
+          if (publishedCount) await publish();
+        }),
+      )
       .catch(() => {
         io.disconnectSockets(true);
       })

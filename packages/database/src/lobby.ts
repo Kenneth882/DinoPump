@@ -12,6 +12,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { publicMarketView, readQuoteUpdatedAtMs } from "./market-view.js";
 import { readMarketUpdates } from "./market-updates.js";
+import { publishCommentary } from "./commentary.js";
 import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
 import {
@@ -119,6 +120,11 @@ export class LobbyStore {
       });
       await store.processDue().catch((error) => {
         if (!(error instanceof RoundIntegrityError)) throw error;
+      });
+      await store.processCommentary().catch(() => {
+        console.error(
+          JSON.stringify({ event: "commentary.publication_failed" }),
+        );
       });
       return store;
     } catch (error) {
@@ -561,7 +567,7 @@ export class LobbyStore {
               recentOrders,
               news: (
                 await client.query(
-                  "SELECT item FROM news_items WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
+                  "SELECT item FROM delivered_news WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
                   [engine.round.roundId],
                 )
               ).rows.map((row) => newsItemSchema.parse(row.item)),
@@ -1173,6 +1179,15 @@ export class LobbyStore {
         serverTime: now,
         allowed,
       };
+    });
+  }
+
+  /** Optional publication owns a separate bounded transaction after market delivery. */
+  processCommentary() {
+    return this.run(async (client) => {
+      await client.query("SET LOCAL statement_timeout='100ms'");
+      await client.query("SET LOCAL lock_timeout='50ms'");
+      return publishCommentary(client);
     });
   }
 

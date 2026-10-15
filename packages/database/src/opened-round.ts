@@ -263,7 +263,21 @@ async function readRoundHistory(
       if (
         !isDeepStrictEqual(item, expected) ||
         Number(newsRow.sourceSequence) !== item.sequence ||
-        !isDeepStrictEqual(newsRow.input, narrationInput(expected))
+        !isDeepStrictEqual(
+          newsRow.input,
+          newsRow.input &&
+            typeof newsRow.input === "object" &&
+            "version" in newsRow.input
+            ? narrationInput(
+                expected,
+                round,
+                batches.filter(
+                  (candidate) =>
+                    candidate.events.at(-1)!.sequence < item.sequence,
+                ),
+              )
+            : narrationInput(expected),
+        )
       )
         throw new Error("Scheduled news or job disagrees with history");
     });

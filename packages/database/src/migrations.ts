@@ -209,6 +209,62 @@ const migrations = [
         FOR EACH ROW EXECUTE FUNCTION reject_terminal_conflict();
     `,
   },
+  {
+    version: 7,
+    sql: `
+      ALTER TABLE commentary_jobs ADD COLUMN output jsonb;
+      CREATE TABLE commentary_attempts (
+        source_event_id uuid NOT NULL REFERENCES commentary_jobs(source_event_id),
+        attempt integer NOT NULL, result jsonb NOT NULL, PRIMARY KEY(source_event_id,attempt)
+      );
+      CREATE TRIGGER immutable_attempt BEFORE UPDATE OR DELETE ON commentary_attempts
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE TABLE commentary_publications (
+        source_event_id uuid PRIMARY KEY REFERENCES news_items(source_event_id), item jsonb NOT NULL
+      );
+      CREATE TRIGGER immutable_commentary BEFORE UPDATE OR DELETE ON commentary_publications
+        FOR EACH ROW EXECUTE FUNCTION reject_frozen_round_change();
+      CREATE VIEW delivered_news AS SELECT n.source_event_id,n.round_id,n.scheduled_event_id,COALESCE(p.item,n.item) AS item
+        FROM news_items n LEFT JOIN commentary_publications p USING(source_event_id);
+      DO $$ BEGIN
+        IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='dinopump_commentary') THEN
+          CREATE ROLE dinopump_commentary NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+        END IF;
+      END $$;
+      GRANT USAGE ON SCHEMA __COMMENTARY_SCHEMA__ TO dinopump_commentary;
+      -- No direct job writes: attempts, leases and completion are fenced by these functions.
+      CREATE FUNCTION claim_commentary(at_ms bigint, token uuid) RETURNS jsonb
+        LANGUAGE plpgsql SECURITY DEFINER SET search_path = __COMMENTARY_SCHEMA__, pg_temp AS $$
+      DECLARE job commentary_jobs; BEGIN
+        -- A crash on the last allowed attempt must eventually release the job to fallback.
+        UPDATE commentary_jobs SET status='failed',lease_id=NULL,lease_expires_at_ms=NULL,
+          output=jsonb_build_object('status','fallback','provenance',jsonb_build_object('provider','worker','model','none','promptVersion','worker-v1','durationMs',0,'validationStatus','unavailable'))
+          WHERE attempts>=2 AND status IN ('pending','leased') AND (lease_expires_at_ms IS NULL OR lease_expires_at_ms<=at_ms);
+        SELECT * INTO job FROM commentary_jobs WHERE attempts<2 AND
+          ((status='pending' AND next_attempt_at_ms<=at_ms) OR (status='leased' AND lease_expires_at_ms<=at_ms))
+          ORDER BY next_attempt_at_ms,source_event_id FOR UPDATE SKIP LOCKED LIMIT 1;
+        IF NOT FOUND THEN RETURN NULL; END IF;
+        UPDATE commentary_jobs SET status='leased',attempts=attempts+1,lease_id=token,lease_expires_at_ms=at_ms+15000 WHERE source_event_id=job.source_event_id;
+        RETURN jsonb_build_object('sourceEventId',job.source_event_id,'input',job.input,'leaseId',token,'attempts',job.attempts+1);
+      END $$;
+      CREATE FUNCTION finish_commentary(source_id uuid, token uuid, result jsonb, at_ms bigint) RETURNS boolean
+        LANGUAGE plpgsql SECURITY DEFINER SET search_path = __COMMENTARY_SCHEMA__, pg_temp AS $$
+      DECLARE job commentary_jobs; retry boolean; BEGIN
+        SELECT * INTO job FROM commentary_jobs WHERE source_event_id=source_id FOR UPDATE;
+        IF NOT FOUND OR job.status<>'leased' OR job.lease_id<>token OR job.lease_expires_at_ms<=at_ms THEN RETURN false; END IF;
+        IF result->>'status' NOT IN ('accepted','fallback') OR result->'provenance'->>'validationStatus' IS NULL THEN
+          RAISE EXCEPTION 'Invalid commentary result';
+        END IF;
+        retry := result->'provenance'->>'validationStatus' IN ('unavailable','timeout') AND job.attempts<2;
+        INSERT INTO commentary_attempts(source_event_id,attempt,result) VALUES(source_id,job.attempts,result);
+        UPDATE commentary_jobs SET status=CASE WHEN retry THEN 'pending' WHEN result->>'status'='accepted' THEN 'completed' ELSE 'failed' END,
+          next_attempt_at_ms=at_ms+1000,lease_id=NULL,lease_expires_at_ms=NULL,output=CASE WHEN retry THEN NULL ELSE result END WHERE source_event_id=source_id;
+        RETURN true;
+      END $$;
+      REVOKE ALL ON FUNCTION claim_commentary(bigint,uuid),finish_commentary(uuid,uuid,jsonb,bigint) FROM PUBLIC;
+      GRANT EXECUTE ON FUNCTION claim_commentary(bigint,uuid),finish_commentary(uuid,uuid,jsonb,bigint) TO dinopump_commentary;
+    `,
+  },
 ];
 
 /** Apply ordered migrations atomically; serialize concurrent migration runners. */
@@ -232,7 +288,12 @@ export async function migrate(pool: Pool): Promise<number[]> {
     }
     const applied: number[] = [];
     for (const migration of migrations.slice(versions.length)) {
-      await client.query(migration.sql);
+      const schema = (await client.query("SELECT current_schema() AS name"))
+        .rows[0].name as string;
+      const quotedSchema = '"' + schema.replaceAll('"', '""') + '"';
+      await client.query(
+        migration.sql.replaceAll("__COMMENTARY_SCHEMA__", quotedSchema),
+      );
       await client.query(
         "INSERT INTO schema_migrations (version) VALUES ($1)",
         [migration.version],

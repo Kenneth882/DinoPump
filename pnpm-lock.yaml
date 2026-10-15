@@ -45,7 +45,21 @@ importers:
         specifier: 5.0.1
         version: 5.0.1(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(tsx@4.23.15))
 
-  apps/commentary-worker: {}
+  apps/commentary-worker:
+    dependencies:
+      '@dinopump/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@dinopump/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
 
   apps/game-server:
     dependencies:

@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { DailyRoar } from "./daily-roar";
 import { RoundResults } from "./round-results";
 import { MarketTerminal } from "./market-terminal";
 import {
@@ -642,16 +643,35 @@ export function Lobby() {
       setServerClock({ at: batch.serverTime, received: performance.now() });
       setElapsed(0);
     });
-    // Initial template facts are applied with their market batch, never as half a batch.
+    // Authored facts arrive with a complete batch. Optional narration can only
+    // enrich an already-applied source; it never advances a market cursor.
     socket.on("news:update", (data: unknown) => {
       const parsed = newsItemSchema.safeParse(data);
-      if (
-        !parsed.success ||
-        !visible?.round?.news.some(
-          (item) => item.sourceEventId === parsed.data.sourceEventId,
-        )
-      )
+      if (!parsed.success) {
         requestSnapshot();
+        return;
+      }
+      const item = parsed.data;
+      if (!visible?.round || visible.round.roundId !== item.roundId) return;
+      const previous = visible.round.news.find(
+        (news) => news.sourceEventId === item.sourceEventId,
+      );
+      if (!previous) {
+        requestSnapshot();
+        return;
+      }
+      if (previous.narrationStatus !== "pending") return;
+      if (item.narrationStatus === "pending") return;
+      visible = {
+        ...visible,
+        round: {
+          ...visible.round,
+          news: visible.round.news.map((news) =>
+            news.sourceEventId === item.sourceEventId ? item : news,
+          ),
+        },
+      };
+      setSnapshot(visible);
     });
     const retry = setInterval(() => {
       // Socket.IO backs off transport failures. Explicit server disconnects
@@ -924,12 +944,20 @@ export function Lobby() {
             </p>
           )}
           {snapshot?.terminal && (
-            <RoundResults
-              result={snapshot.terminal}
-              host={player?.playerId === snapshot.hostId}
-              disabled={commandPending || connection !== "Connected"}
-              onReturn={() => submitCommand("room:return-to-lobby")}
-            />
+            <>
+              <RoundResults
+                result={snapshot.terminal}
+                host={player?.playerId === snapshot.hostId}
+                disabled={commandPending || connection !== "Connected"}
+                onReturn={() => submitCommand("room:return-to-lobby")}
+              />
+              {snapshot.round && (
+                <DailyRoar
+                  news={snapshot.round.news}
+                  opensAt={snapshot.round.opensAt}
+                />
+              )}
+            </>
           )}
           {snapshot?.round && !snapshot.terminal && (
             <MarketTerminal

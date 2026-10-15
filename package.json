@@ -24,7 +24,9 @@
     "db:migrate": "pnpm --filter @dinopump/database migrate",
     "db:verify": "pnpm build:shared && node scripts/verify-database.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
-    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/engine --filter @dinopump/database build"
+    "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/engine --filter @dinopump/database build",
+    "worker": "pnpm --filter @dinopump/commentary-worker dev",
+    "db:worker-role": "pnpm --filter @dinopump/database provision-commentary"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.3.5",

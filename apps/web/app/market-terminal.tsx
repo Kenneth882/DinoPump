@@ -2,6 +2,8 @@
 
 import { useState, type ComponentProps } from "react";
 import { PortfolioPanel, ProvisionalLeaderboard } from "./portfolio";
+import { DailyRoar } from "./daily-roar";
+import { elapsedRoundTime as elapsed } from "./round-time";
 import { PlayerActivity } from "./player-activity";
 import { TradeTicket } from "./trade-ticket";
 import type { LobbySnapshot, OrderSubmit } from "@dinopump/contracts";
@@ -9,10 +11,6 @@ import type { LobbySnapshot, OrderSubmit } from "@dinopump/contracts";
 type RoundView = NonNullable<LobbySnapshot["round"]>;
 const money = (cents: number) =>
   `D$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const elapsed = (at: number, opening: number) => {
-  const seconds = Math.max(0, Math.floor((at - opening) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-};
 
 function PriceChart({
   round,
@@ -300,48 +298,7 @@ export function MarketTerminal({
               <p>No trades yet.</p>
             )}
           </section>
-          <section
-            aria-labelledby="news-heading"
-            className="daily-roar terminal-panel"
-          >
-            <h3 id="news-heading">The Daily Roar</h3>
-            {round.news.length === 0 ? (
-              <p>
-                No news yet. The first market event arrives one minute into the
-                round.
-              </p>
-            ) : (
-              <ol aria-label="Market news">
-                {[...round.news].reverse().map((item) => (
-                  <li key={item.sourceEventId} data-testid="news-item">
-                    <article>
-                      <h4>{item.headline}</h4>
-                      <p>{item.facts}</p>
-                      <p>{item.commentary}</p>
-                      <p>
-                        Authored game news ·{" "}
-                        <time
-                          dateTime={new Date(item.appliedAtMs).toISOString()}
-                        >
-                          {elapsed(item.appliedAtMs, round.opensAt)} elapsed
-                        </time>
-                      </p>
-                      <ul aria-label="Reference price effects">
-                        {item.effects.map((effect) => (
-                          <li key={effect.symbol}>
-                            {effect.symbol}: {effect.changeBps >= 0 ? "+" : ""}
-                            {effect.changeBps / 100}% reference effect ·{" "}
-                            {money(effect.beforeCents)} →{" "}
-                            {money(effect.afterCents)}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+          <DailyRoar news={round.news} opensAt={round.opensAt} />
         </div>
         <div className="terminal-right">
           <TradeTicket
