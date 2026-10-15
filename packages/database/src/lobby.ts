@@ -121,6 +121,11 @@ export class LobbyStore {
       await store.processDue().catch((error) => {
         if (!(error instanceof RoundIntegrityError)) throw error;
       });
+      await store.processCommentary().catch(() => {
+        console.error(
+          JSON.stringify({ event: "commentary.publication_failed" }),
+        );
+      });
       return store;
     } catch (error) {
       client.release(true);
@@ -1177,6 +1182,15 @@ export class LobbyStore {
     });
   }
 
+  /** Optional publication owns a separate bounded transaction after market delivery. */
+  processCommentary() {
+    return this.run(async (client) => {
+      await client.query("SET LOCAL statement_timeout='100ms'");
+      await client.query("SET LOCAL lock_timeout='50ms'");
+      return publishCommentary(client);
+    });
+  }
+
   processDue() {
     return this.run(async (client, now) => {
       const applied: {
@@ -1211,7 +1225,6 @@ export class LobbyStore {
         );
         applied.push(...result.applied);
       }
-      await publishCommentary(client);
       const rooms = await client.query(
         "SELECT * FROM rooms WHERE status='LOBBY'",
       );

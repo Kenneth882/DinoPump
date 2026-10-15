@@ -66,19 +66,9 @@ test("authored news stays complete without AI; late narration enriches the same 
     await expect(guest!.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15000,
     });
-    await writeFile(process.env.DINOPUMP_E2E_CLOCK!, "660000");
-    await expect(host!.getByTestId("news-item")).toHaveCount(9);
-    const read = async () =>
-      lobbySnapshotSchema.parse(
-        await host!.evaluate(
-          async (roomCode) =>
-            await (await fetch(`/api/rooms/${roomCode}/snapshot`)).json(),
-          code,
-        ),
-      );
-    const before = await read();
-    expect(before.status).toBe("FINISHED");
-    const source = before.round!.news[1]!;
+    await pool.query(
+      `CREATE FUNCTION fail_browser_commentary() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic optional browser publication failure'; END $$; CREATE TRIGGER fail_browser_commentary BEFORE INSERT ON commentary_publications FOR EACH ROW EXECUTE FUNCTION fail_browser_commentary()`,
+    );
     const worker = new CommentaryWorker(
       pool,
       {
@@ -101,9 +91,29 @@ test("authored news stays complete without AI; late narration enriches the same 
           };
         },
       },
-      () => Date.now() + 660000,
+      () => Date.now() + 121000,
     );
     await worker.processOne();
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK!, "660000");
+    await expect(host!.getByTestId("news-item")).toHaveCount(9);
+    const read = async () =>
+      lobbySnapshotSchema.parse(
+        await host!.evaluate(
+          async (roomCode) =>
+            await (await fetch(`/api/rooms/${roomCode}/snapshot`)).json(),
+          code,
+        ),
+      );
+    const before = await read();
+    expect(before.status).toBe("FINISHED");
+    const source = before.round!.news[1]!;
+    for (const page of [host!, guest!]) {
+      await expect(page.getByText("Connected", { exact: true })).toBeVisible();
+      await expect(page.getByTestId("ai-narration")).toHaveCount(0);
+    }
+    await pool.query(
+      "DROP TRIGGER fail_browser_commentary ON commentary_publications",
+    );
     for (const page of [host!, guest!]) {
       const card = page
         .getByTestId("news-item")

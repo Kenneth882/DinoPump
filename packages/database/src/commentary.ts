@@ -40,6 +40,7 @@ export async function publishCommentary(client: PoolClient) {
   const rows =
     await client.query(`SELECT j.source_event_id,j.output,j.input,n.item FROM commentary_jobs j JOIN news_items n USING(source_event_id)
     WHERE j.status IN ('completed','failed') AND j.output IS NOT NULL AND NOT EXISTS(SELECT 1 FROM commentary_publications p WHERE p.source_event_id=j.source_event_id) ORDER BY n.round_id,(n.item->>'sequence')::bigint`);
+  let publishedCount = 0;
   for (const row of rows.rows) {
     const result = commentaryResultSchema.safeParse(row.output);
     if (!result.success) continue;
@@ -71,5 +72,7 @@ export async function publishCommentary(client: PoolClient) {
       "UPDATE rooms SET sequence=sequence+1 WHERE current_round_id=$1",
       [item.roundId],
     );
+    publishedCount++;
   }
+  return publishedCount;
 }

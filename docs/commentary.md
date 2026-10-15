@@ -2,7 +2,8 @@
 
 The game service commits complete authored news and a frozen narration input with
 each scheduled effect. A separate worker leases jobs. The game service's existing
-250ms owned queue publishes completed output to the same news card after commit.
+250ms owned queue first commits and delivers market changes, then publishes
+completed output in a separate transaction to the same news card.
 Neither a running worker nor an AI key is needed to play.
 
 ## Local setup
@@ -49,6 +50,9 @@ or a typed fallback. Synthetic adapters exercise accepted publication in tests.
 - Completion requires the current unexpired lease. Accepted output and attempts
   commit before publication. The owner retries publication independently without
   another provider call; restart or missed broadcast recovers from snapshots.
+  Publication failure cannot roll back opening, due effects or closing, or
+  disconnect clients. Optional statements have a 100ms timeout and a 50ms lock
+  timeout so stalled publication work does not monopolize the owner queue.
 - Authored `news_items`, market history and results remain immutable. Separate
   immutable `commentary_publications` enrich delivery. Late output can publish
   after closing. Old-round output remains recorded after lobby reset and cannot

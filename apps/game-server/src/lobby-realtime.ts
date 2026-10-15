@@ -360,6 +360,21 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       for (const event of applied)
         console.info(JSON.stringify({ event: "scheduler.applied", ...event }));
     })
+      .then(() =>
+        serial(async () => {
+          // Market changes have already committed and reached clients. A failed
+          // optional publication cannot roll them back or disconnect the room.
+          let publishedCount = 0;
+          try {
+            publishedCount = await options.store.processCommentary();
+          } catch {
+            console.error(
+              JSON.stringify({ event: "commentary.publication_failed" }),
+            );
+          }
+          if (publishedCount) await publish();
+        }),
+      )
       .catch(() => {
         io.disconnectSockets(true);
       })

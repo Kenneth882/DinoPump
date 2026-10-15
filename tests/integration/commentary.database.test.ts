@@ -57,6 +57,7 @@ async function openRound() {
   await store.start(host.secret, code, { requestId: randomUUID() });
   now += 5000;
   await store.processDue();
+  await store.processCommentary();
   const snapshot = await store.snapshot(host.secret, code);
   return { host, guest, code, opening: snapshot.round! };
 }
@@ -65,10 +66,12 @@ it("keeps complete authored news without a provider (AC-09/13/14)", async () => 
   const { host, code } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const before = (await store.snapshot(host.secret, code)).round!;
   const worker = new CommentaryWorker(database.pool, undefined, () => now);
   expect(await worker.processOne()).toBe(true);
   await store.processDue();
+  await store.processCommentary();
   const fallback = (await store.snapshot(host.secret, code)).round!;
   expect(fallback.news[0]).toMatchObject({
     ...before.news[0],
@@ -103,11 +106,13 @@ it("adds late narration to the same authored card without changing market histor
   const { host, code, opening } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const source = (await store.snapshot(host.secret, code)).round!.news[0]!;
   const leased = await claimCommentary(database.pool, now);
   expect(leased?.input.success).toBe(true);
   now = opening.closesAt;
   await store.processDue();
+  await store.processCommentary();
   const before = await store.snapshot(host.secret, code);
   const history = await readOpenedRound(database.pool, opening.roundId);
   // Renew by expiry: the old worker cannot publish even after it resumes.
@@ -125,6 +130,7 @@ it("adds late narration to the same authored card without changing market histor
     source,
   );
   await store.processDue();
+  await store.processCommentary();
   const after = await store.snapshot(host.secret, code);
   expect(after.terminal).toEqual(before.terminal);
   expect(await readOpenedRound(database.pool, opening.roundId)).toEqual(
@@ -149,6 +155,7 @@ it("adds late narration to the same authored card without changing market histor
     },
   });
   await store.processDue();
+  await store.processCommentary();
   expect((await store.snapshot(host.secret, code)).round).toEqual(after.round);
 });
 
@@ -156,6 +163,7 @@ it("fences two workers, recovers abandoned leases, and bounds attempts across cr
   await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const claims = await Promise.all([
     claimCommentary(database.pool, now),
     claimCommentary(database.pool, now),
@@ -187,6 +195,7 @@ it("fences two workers, recovers abandoned leases, and bounds attempts across cr
     ),
   ).toBe(false);
   await store.processDue();
+  await store.processCommentary();
   const jobs = await database.pool.query(
     "SELECT status,attempts FROM commentary_jobs",
   );
@@ -208,6 +217,7 @@ it("freezes first and preceding-event activity windows and excludes private iden
   await trade();
   now = opening.opensAt + 60000;
   await store.processDue();
+  await store.processCommentary();
   const first = await claimCommentary(database.pool, now);
   expect(first!.input.success).toBe(true);
   if (!first!.input.success) throw new Error("Expected approved context");
@@ -269,6 +279,7 @@ it("retries provider outages on a persisted schedule, then retains authored fall
   const { host, code } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const worker = new CommentaryWorker(
     database.pool,
     {
@@ -288,6 +299,7 @@ it("retries provider outages on a persisted schedule, then retains authored fall
   now += 1000;
   expect(await worker.processOne()).toBe(false);
   await store.processDue();
+  await store.processCommentary();
   expect(
     (await store.snapshot(host.secret, code)).round!.news[0],
   ).toMatchObject({
@@ -300,11 +312,12 @@ it("retries committed output after publication rollback and service restart with
   const { host, code, opening } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   await new CommentaryWorker(database.pool, accepted, () => now).processOne();
   await database.pool.query(
     `CREATE FUNCTION fail_publication() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic publication failure'; END $$; CREATE TRIGGER fail_publication BEFORE INSERT ON commentary_publications FOR EACH ROW EXECUTE FUNCTION fail_publication()`,
   );
-  await expect(store.processDue()).rejects.toThrow(
+  await expect(store.processCommentary()).rejects.toThrow(
     "synthetic publication failure",
   );
   expect(
@@ -326,6 +339,7 @@ it("database permissions expose only approved jobs and commentary functions (AC-
   await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const client = await database.pool.connect();
   try {
     await client.query("SET ROLE dinopump_commentary");
@@ -371,6 +385,7 @@ it("keeps captured inputs across later trades and a crashed worker retry (AC-09/
   const { host, code, opening } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const original = await claimCommentary(database.pool, now);
   now += 1000;
   await store.submitOrder(host.secret, code, {
@@ -391,6 +406,7 @@ it("two live processors publish one accepted result and store safe provenance", 
   const { host, code } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const processors = [
     new CommentaryWorker(database.pool, accepted, () => now),
     new CommentaryWorker(database.pool, accepted, () => now),
@@ -400,6 +416,7 @@ it("two live processors publish one accepted result and store safe provenance", 
   );
   expect(outcomes.filter(Boolean)).toHaveLength(1);
   await store.processDue();
+  await store.processCommentary();
   expect((await store.snapshot(host.secret, code)).round!.news).toHaveLength(1);
   const attempts = await database.pool.query(
     "SELECT attempt,result->'provenance' AS provenance FROM commentary_attempts",
@@ -421,6 +438,7 @@ it("rejects malformed or executable accepted output and preserves authored copy 
   const { host, code } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const source = (await store.snapshot(host.secret, code)).round!.news[0]!;
   const worker = new CommentaryWorker(
     database.pool,
@@ -437,6 +455,7 @@ it("rejects malformed or executable accepted output and preserves authored copy 
   );
   await worker.processOne();
   await store.processDue();
+  await store.processCommentary();
   expect(
     (await store.snapshot(host.secret, code)).round!.news[0],
   ).toMatchObject({
@@ -450,6 +469,7 @@ it("bounds a hung provider call without blocking market closing (AC-11/13)", asy
   const { host, code, opening } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   const worker = new CommentaryWorker(
     database.pool,
     {
@@ -464,6 +484,7 @@ it("bounds a hung provider call without blocking market closing (AC-11/13)", asy
   // Market processing uses a different connection and never waits for narration.
   now = opening.closesAt;
   await store.processDue();
+  await store.processCommentary();
   expect((await store.snapshot(host.secret, code)).terminal?.status).toBe(
     "FINISHED",
   );
@@ -474,6 +495,7 @@ it("runs the separate process using a real restricted login without an AI key (A
   const { host, code } = await openRound();
   now += 60000;
   await store.processDue();
+  await store.processCommentary();
   await database.pool.query("UPDATE commentary_jobs SET next_attempt_at_ms=0");
   const login = "worker_" + randomUUID().replaceAll("-", "");
   const schema = (await database.pool.query("SELECT current_schema() AS name"))
@@ -524,6 +546,7 @@ it("runs the separate process using a real restricted login without an AI key (A
       .poll(() => output, { timeout: 8000 })
       .toContain('"event":"commentary.attempt"');
     await store.processDue();
+    await store.processCommentary();
     expect(
       (await store.snapshot(host.secret, code)).round!.news[0]?.narrationStatus,
     ).toBe("fallback");
@@ -534,3 +557,34 @@ it("runs the separate process using a real restricted login without an AI key (A
     await database.pool.query(`DROP ROLE ${login}`);
   }
 }, 15000);
+
+it("commits due effects and closing despite failed optional publication (AC-09/11/13/14)", async () => {
+  const { host, code, opening } = await openRound();
+  now += 60000;
+  await store.processDue();
+  await new CommentaryWorker(database.pool, accepted, () => now).processOne();
+  await database.pool.query(
+    `CREATE FUNCTION fail_optional_publication() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic optional publication failure'; END $$; CREATE TRIGGER fail_optional_publication BEFORE INSERT ON commentary_publications FOR EACH ROW EXECUTE FUNCTION fail_optional_publication()`,
+  );
+  now = opening.opensAt + 120000;
+  await expect(store.processDue()).resolves.toHaveLength(1);
+  await expect(store.processCommentary()).rejects.toThrow(
+    "synthetic optional publication failure",
+  );
+  const afterEvent = await store.snapshot(host.secret, code);
+  expect(afterEvent.round!.news).toHaveLength(2);
+  now = opening.closesAt;
+  await expect(store.processDue()).resolves.toHaveLength(7);
+  await expect(store.processCommentary()).rejects.toThrow(
+    "synthetic optional publication failure",
+  );
+  const afterClose = await store.snapshot(host.secret, code);
+  expect(afterClose.status).toBe("FINISHED");
+  expect(afterClose.terminal?.status).toBe("FINISHED");
+  expect(afterClose.round!.news).toHaveLength(9);
+  await store.close();
+  store = await LobbyStore.open(database.pool, () => now);
+  expect((await store.snapshot(host.secret, code)).terminal).toEqual(
+    afterClose.terminal,
+  );
+});
