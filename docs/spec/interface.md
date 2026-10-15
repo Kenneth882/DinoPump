@@ -26,6 +26,8 @@ During the closing/results stage (ticket #11), the availability notice reads “
 
 During the live-terminal stage (ticket #14), the synchronized round view uses a desktop watchlist/chart-news/trade-depth layout. It adds frozen opening changes, actual covered depth, a recent fill tape, and an elapsed-time chart of opening plus all executed fills. News markers never add trade points. Keyboard selection connects the watchlist, chart, and protected ticket; quote freshness and reconnect pauses remain visible. Portfolio and activity expansion and the complete narrow-screen tab journey are delivered by their subsequent tickets.
 
+During the portfolio stage (ticket #15), each owner sees private cash, units, marked holdings, portfolio value, profit and return. Live values use the authoritative public total and last-trade marks, falling back to the frozen opening price before any fill. The provisional leaderboard shows shared ranks in stable join order and retains disconnected players. Only permitted public totals appear for other players. Closing reuses the owner summary with frozen marks/results and a major-event timeline; historical authorized results remain unchanged after reconnect, lobby reset, and later rounds. Gain, loss and unchanged labels accompany numeric values, and portfolio panels and holdings disclosures support keyboard use.
+
 During service failure or an invalid response, retain the introduction and both notices, omit asset prices, and show “Market information is temporarily unavailable” with a keyboard-accessible Retry button. Do not substitute bundled prices. Label successfully loaded prices as initial prices, not live quotes.
 
 ### Lobby

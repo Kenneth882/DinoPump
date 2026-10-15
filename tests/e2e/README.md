@@ -37,3 +37,13 @@ The harness discovers selected spec files and runs each with a fresh synthetic
 schema and clock. Each gets its own service process and active room, so multiple
 multiplayer suites cannot contend for the MVP's single room. Use `pnpm test:e2e`
 for all browser specs or `pnpm test:e2e tests/e2e/terminal.spec.ts` for this slice.
+
+`portfolio.spec.ts` covers ticket #15 at the same browser/snapshot boundary:
+opening shared ties, worked multi-fill buy/sell P/L and holdings values, quote-only
+news with unchanged marks, both owners' private resources, disconnected rankings,
+keyboard disclosures and 360px layout, frozen closing marks and event history,
+reconnect/reload at close, immutable participant results after reset/new rounds,
+and shared no-trade winners. It checks received HTTP/WebSocket bodies for private
+order or credential leaks and the permitted public-total fields. Screenshots
+include marked portfolios and frozen results at desktop and 360px widths. These
+checks support AC-04/10/11/17, not the later load or complete mobile-tab gates.

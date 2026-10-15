@@ -913,6 +913,7 @@ export function Lobby() {
               key={snapshot.round.roundId}
               round={snapshot.round}
               players={snapshot.players}
+              playerId={player.playerId}
               roomCode={activeCode}
               connection={connection}
               secondsRemaining={secondsUntil(snapshot.round.closesAt)}
