@@ -6,7 +6,7 @@ import {
   type CommentaryResult,
 } from "@dinopump/contracts";
 
-/** Ticket 18 supplies a provider adapter that returns fact-checked output. */
+/** Providers are wrapped in factual validation before reaching this seam. */
 export interface Narrator {
   provider: string;
   model: string;

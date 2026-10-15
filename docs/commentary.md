@@ -1,4 +1,4 @@
-# Commentary worker (ticket #17)
+# Commentary worker and optional narration (tickets #17–18)
 
 The game service commits complete authored news and a frozen narration input with
 each scheduled effect. A separate worker leases jobs. The game service's existing
@@ -14,8 +14,8 @@ setup in [README](../README.md), then:
 1. Choose a separate PostgreSQL login and unique password. Add
    `COMMENTARY_DATABASE_URL` to a separate ignored root `.env.commentary`, targeting the same
    database/schema as `DATABASE_URL` with that separate login. URL-encode password
-   characters, then run `chmod 600 .env.commentary`. This file contains only the
-   worker URL; keep the game-service credential in `.env`.
+   characters, then run `chmod 600 .env.commentary`. Keep the game-service
+   credential in `.env`; optional provider settings go in `.env.commentary` below.
 2. Run `pnpm db:migrate`. Migration 7 creates the `dinopump_commentary` NOLOGIN
    permission group and schema-scoped functions. The migration operator needs
    CREATEROLE as well as schema ownership; use an operator credential for setup.
@@ -25,14 +25,47 @@ setup in [README](../README.md), then:
    and privileges; use a fresh dedicated login. The worker rejects excess table
    privileges at startup.
 4. Run `pnpm dev` for web/service and, in another terminal, `pnpm worker`.
-   The worker loads only its restricted URL. Stop it with Ctrl-C. For a compiled
+   The worker loads only `.env.commentary`. Stop it with Ctrl-C. For a compiled
    process, run `pnpm build` then `pnpm --filter @dinopump/commentary-worker start`.
 
-The runnable worker currently records disabled-provider fallback. Ticket #18 owns
-provider selection, credentials, factual-output validation and live generation.
-No provider SDK or API-key variable is introduced here. Its adapter seam is
-`Narrator.narrate(input, signal)`, which must return accepted, fact-checked output
-or a typed fallback. Synthetic adapters exercise accepted publication in tests.
+### Optional provider
+
+Core play defaults to disabled narration. To enable the OpenAI adapter, add these
+settings to the ignored `.env.commentary` file only:
+
+```dotenv
+COMMENTARY_PROVIDER=openai
+OPENAI_API_KEY=replace_with_your_private_provider_key
+COMMENTARY_MODEL=your_pinned_responses_model_snapshot
+```
+
+Use an available Responses model supporting structured JSON output. Pin its
+snapshot in your deployment configuration; no model is silently selected for you.
+Missing credentials, a missing/invalid model, or an unsupported provider leaves
+narration disabled. Remove `COMMENTARY_PROVIDER` to disable calls. Never put the
+key in the game-service environment, a browser variable, or a committed file.
+
+The adapter uses Node's built-in fetch and the
+[Responses API](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses),
+with `store: false`, no tools, one request per leased attempt and the worker's
+five-second abort signal. There is no SDK or hidden transport retry. HTTP errors
+use the existing persisted retry schedule; refusals/incomplete or malformed
+responses retain authored news. No live credential is needed for validation.
+
+`NarrationProvider.generate(request, signal)` is the replaceable external boundary;
+`FactCheckedNarrator` validates its output before the worker can publish it.
+The model selects an affected asset and a complete approved contextual passage,
+optionally adding approved light dinosaur humor. Passages distinguish reference
+changes from last executed prices and describe aggregate activity as preceding
+the source event. Exact passage membership and JSON field limits are checked
+locally, including pairing the headline with its asset. Arbitrary free-form prose
+is rejected even when it sounds plausible: this conservative vocabulary makes
+factual validation deterministic. The authored event still supplies the full
+fictional account; the added paragraph supplies recorded trading context.
+
+Only an explicit projection of approved authored facts and frozen asset/context
+fields is sent. Source/round IDs, player identities, credentials and future
+events are omitted. Provenance is supplied locally, never trusted from the model.
 
 ## Storage and recovery
 
@@ -69,12 +102,17 @@ or a typed fallback. Synthetic adapters exercise accepted publication in tests.
 `pnpm check` runs formatting/lint, type checks, pure/service tests and builds.
 `pnpm db:verify` covers real PostgreSQL leases, permission denials, retry schedules,
 frozen activity windows, publication rollback/restart and immutable late results.
-`pnpm test:e2e commentary.spec.ts` verifies complete fallback cards and late
-labeled narration in two browsers, including 360px, a trade, reconnect and closing.
+`pnpm test:e2e commentary.spec.ts commentary-no-key.spec.ts` verifies complete
+fallback cards, a full no-key round, and late fact-checked narration in two
+browsers, including 360px, trading, reconnect and closing. Pure provider tests
+cover JSON/length checks, exact factual passage membership, private-field
+exclusion, configuration, structured requests and refusal/incomplete output.
 The synthetic provider needs no external key.
 
-These checks support ticket #17's AC-09/11/13/14/18 cases. They do not establish
-#18's factual validation, full narration milestone completion, eight-client load
-or release acceptance.
+These checks support the narration portions of AC-09/11/13/14/18. They do not
+establish eight-client load or release acceptance. Live provider availability,
+model access and latency require a configured account; all local acceptance
+evidence uses synthetic responses and no external key.
 
 Recorded results: [ticket #17 validation](validation/ticket-17-commentary.md).
+See also [ticket #18 validation](validation/ticket-18-narration.md).
