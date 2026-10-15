@@ -5,6 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "node --env-file=../../.env.commentary --import tsx src/index.ts",
+    "start": "node --env-file=../../.env.commentary dist/index.js"
+  },
+  "dependencies": {
+    "@dinopump/database": "workspace:*",
+    "@dinopump/contracts": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
   }
 }

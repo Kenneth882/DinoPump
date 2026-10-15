@@ -37,7 +37,7 @@ export async function readMarketUpdates(
   if (current.rows.every((row) => row.public_view)) {
     const news = (
       await client.query(
-        "SELECT item FROM news_items WHERE round_id=$1 AND (item->>'sequence')::bigint>$2",
+        "SELECT item FROM delivered_news WHERE round_id=$1 AND (item->>'sequence')::bigint>$2",
         [verified.round.roundId, afterSequence],
       )
     ).rows.map((row) => newsItemSchema.parse(row.item));
@@ -71,7 +71,7 @@ export async function readMarketUpdates(
     [verified.round.roundId],
   );
   const news = (
-    await client.query("SELECT item FROM news_items WHERE round_id=$1", [
+    await client.query("SELECT item FROM delivered_news WHERE round_id=$1", [
       verified.round.roundId,
     ])
   ).rows.map((row) => newsItemSchema.parse(row.item));

@@ -12,6 +12,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { publicMarketView, readQuoteUpdatedAtMs } from "./market-view.js";
 import { readMarketUpdates } from "./market-updates.js";
+import { publishCommentary } from "./commentary.js";
 import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
 import {
@@ -561,7 +562,7 @@ export class LobbyStore {
               recentOrders,
               news: (
                 await client.query(
-                  "SELECT item FROM news_items WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
+                  "SELECT item FROM delivered_news WHERE round_id=$1 ORDER BY (item->>'sequence')::bigint",
                   [engine.round.roundId],
                 )
               ).rows.map((row) => newsItemSchema.parse(row.item)),
@@ -1210,6 +1211,7 @@ export class LobbyStore {
         );
         applied.push(...result.applied);
       }
+      await publishCommentary(client);
       const rooms = await client.query(
         "SELECT * FROM rooms WHERE status='LOBBY'",
       );

@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "check": "node --env-file=../../.env --import tsx src/check.ts",
     "migrate": "node --env-file=../../.env --import tsx src/migrate.ts",
-    "dev": "tsc -p tsconfig.json --watch"
+    "dev": "tsc -p tsconfig.json --watch",
+    "provision-commentary": "node --env-file=../../.env --env-file=../../.env.commentary --import tsx src/provision-commentary.ts"
   },
   "dependencies": {
     "@dinopump/engine": "workspace:*",

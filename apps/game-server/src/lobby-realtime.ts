@@ -97,6 +97,11 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       member.roundId = snapshot.round?.roundId;
       member.roundSequence = snapshot.round?.sequence;
       if (snapshot.sequence !== member.sequence) {
+        // Publication is committed by this owner before any delivery. Reconnect
+        // recovers the same item from the snapshot; repeated messages are idempotent.
+        for (const item of snapshot.round?.news ?? [])
+          if (item.narrationStatus !== "pending")
+            socket.emit("news:update", item);
         socket.emit("room:snapshot", snapshot);
         socket.emit("presence:update", snapshot);
         member.sequence = snapshot.sequence;

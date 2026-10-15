@@ -1,3 +1,4 @@
+import { narrationProvenanceSchema } from "./commentary.js";
 import { z } from "zod";
 import { assetSymbolSchema, catalogEventSchema } from "./baseline.js";
 
@@ -26,8 +27,25 @@ export const newsItemSchema = z
       )
       .min(1)
       .max(4),
-    narrationStatus: z.literal("pending"),
+    narrationStatus: z.enum(["pending", "published", "fallback"]),
+    narrationProvenance: narrationProvenanceSchema.optional(),
+    narration: z
+      .strictObject({
+        headline: z.string().min(1).max(100),
+        commentary: z.string().min(1).max(400),
+        capturedAtMs: timestamp,
+        elapsedMs: timestamp,
+      })
+      .optional(),
   })
+  .refine(
+    (news) =>
+      (news.narrationStatus === "published") === Boolean(news.narration) &&
+      (news.narrationStatus === "pending"
+        ? !news.narrationProvenance
+        : Boolean(news.narrationProvenance)),
+    "Narration status and content must agree",
+  )
   .refine(
     (news) => news.appliedAtMs >= news.dueAtMs,
     "News cannot precede its due time",

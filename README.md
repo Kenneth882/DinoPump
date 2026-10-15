@@ -71,11 +71,13 @@ Install the Playwright browser once per machine with `pnpm exec playwright insta
 
 Ticket #1 tests cover canonical prices/defaults, malformed content, the real service-to-web path, and desktop/mobile introduction and retry states. They provide partial supporting evidence for AC-02, AC-05, AC-09, and AC-13. Ticket #2 adds database foundation evidence for AC-02, AC-09, AC-12, and AC-15 through `pnpm db:verify`. Neither suite demonstrates live initialization, scheduled effects, gameplay replay/recovery, or a complete round. Ticket #3 adds pure-engine evidence for AC-02, AC-08, and AC-16, including 500 seeded quote rebuilds; it does not demonstrate trade settlement, serialized service commands, or live-round acceptance.
 
+For the independent narration worker and restricted database login, see [commentary setup and validation](docs/commentary.md). Core gameplay needs no worker or AI key.
+
 ## Workspace
 
 - `apps/web`: Next.js and React app with Socket.IO client dependency.
 - `apps/game-server`: Node/TypeScript service with authenticated guest sessions, durable lobby commands, and Socket.IO presence.
-- `apps/commentary-worker`: reserved TypeScript package; no worker process or provider is implemented.
+- `apps/commentary-worker`: separately runnable leased narration worker with restricted PostgreSQL access; provider integration remains ticket #18. See [worker setup](docs/commentary.md).
 - `packages/engine`: framework-independent bot quote initialization/rebuilding and protected buys/sells with shared runtime contracts; see [engine API](packages/engine/README.md).
 - `packages/contracts`: shared Zod schemas for baseline content, its public HTTP response, frozen rounds, baseline recovery, bot quotes, and protected buy/sell inputs/results.
 - `packages/database`: PostgreSQL migrations, connection check, atomic frozen-round persistence, initialization recovery reads, and owned transactional lobby storage.

@@ -329,6 +329,12 @@ The room owner verifies versioned initialization metadata, frozen configuration,
 
 Startup acquires exclusive database ownership, verifies and rebuilds active state, clears obsolete process presence, and drains overdue pre-close events and settlement before exposing a service listener. Owned reads also repair damaged projections, including historical participant results after lobby reset. A failed transaction invalidates the state cache; database/ownership loss disables the old owner. Recovery after connection or ownership loss requires reopening the store under a newly acquired lock, normally by restarting the service. No transaction helpers or test fault controls are exposed to browsers.
 
+### Leased commentary storage (ticket #17 stage)
+
+Migration 7 adds append-only attempt provenance, immutable commentary publications and a delivered-news view that preserves original authored items. New jobs freeze versioned approved inputs when the event applies: affected fictional assets, actual reference effects, initial/last-executed prices and aggregate executed activity since the preceding event or opening. Recorded sequence boundaries disambiguate overdue events sharing an application time. Recovery verifies these inputs against immutable batches; legacy inputs remain readable and use fallback.
+
+The restricted NOLOGIN role can execute only schema-scoped claim/completion functions. Claims lock with `SKIP LOCKED`, consume at most two attempts and establish a 15-second fenced lease. Timeout/unavailable outcomes retry after one second; disabled/invalid outcomes retain fallback. Completion atomically records provenance/output only for the current unexpired token. Abandoned final leases become fallback on a subsequent poll. The owner commits each publication once by source ID and retries publication independently of generation. The role cannot read private state or change inputs, market data or immutable results. See the worker setup guide (`docs/commentary.md`) for provisioning and independent process commands.
+
 
 ## 9. API and realtime contract
 
@@ -419,6 +425,12 @@ Authorized members may react in the lobby, countdown, open and terminal views. T
 `reaction:published` is exactly `{ id, code, roundId, playerId, reactionId, serverTime }`: a server-generated UUID, room code, current round UUID or null, authenticated sender UUID, approved identifier and integer server timestamp. It contains no command request ID, arbitrary text, private state or credentials. An acceptance is `{ requestId, publishedId }`. Safe errors are `{ error, message, requestId? }` with `INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `ROOM_NOT_FOUND`, `RATE_LIMITED` or `SERVICE_UNAVAILABLE`.
 
 Reactions are transient: request IDs correlate acknowledgements, not durable receipts. Do not buffer offline sends, automatically retry timeouts, or replay missed reactions after reconnect/restart. The browser reports an uncertain timeout, validates room/round and connection context, deduplicates publication IDs, and clears transients on context change. Reaction traffic never advances market cursors, establishes trading freshness, or changes pending orders, balances, marks or results. No reaction writes market events, batches, orders, trades or results.
+
+### Commentary delivery (ticket #17 stage)
+
+`news:update` and authorized snapshots retain all authored fields and add `narrationStatus` (`pending`, `fallback`, or `published`). Terminal narration includes `narrationProvenance` with provider, model, prompt version, duration milliseconds and validation status. Accepted copy adds `narration: { headline, commentary, capturedAtMs, elapsedMs }`. Render only its commentary as plain text labeled “AI narration” and “As of m:ss”; preserve the authored headline and timestamp. Pending/fallback cards have no empty AI section or loading/error state.
+
+The owner publishes durable worker output through its serialized queue, advances room visibility and emits the enriched source item after commit. Commentary does not advance the market cursor or alter results. Snapshot replacement recovers missed updates, including late publication after closing. The browser enriches only an already-applied source in its visible round and ignores old-round messages. The restricted worker has no transport publication authority.
 
 ### Recovery behavior
 

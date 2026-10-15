@@ -1,5 +1,7 @@
 import {
   newsItemSchema,
+  narrationInputSchema,
+  type FrozenRound,
   type EngineBatch,
   type NewsItem,
 } from "@dinopump/contracts";
@@ -34,12 +36,71 @@ export function newsFromBatch(
 }
 
 /** Approved narration inputs contain no credentials, future schedule, or player data. */
-export function narrationInput(news: NewsItem) {
-  return {
+export function narrationInput(
+  news: NewsItem,
+  round?: FrozenRound,
+  preceding: EngineBatch[] = [],
+) {
+  const authored = {
     sourceEventId: news.sourceEventId,
     facts: news.facts,
     effects: news.effects,
     headline: news.headline,
     commentary: news.commentary,
   };
+  // Preserve the exact inputs of historical jobs written before context capture existed.
+  if (!round) return authored;
+  const previous = [...preceding]
+    .reverse()
+    .find((batch) => batch.command.type === "ApplyScheduledEvent");
+  const afterSequence = previous?.events.at(-1)?.sequence ?? 0;
+  const trades = preceding
+    .flatMap((batch) => batch.events)
+    .filter((event) => event.type === "TradeExecuted");
+  return narrationInputSchema.parse({
+    version: 1,
+    sourceEventId: news.sourceEventId,
+    roundId: news.roundId,
+    facts: news.facts,
+    headline: news.headline,
+    commentary: news.commentary,
+    context: {
+      capturedAtMs: news.appliedAtMs,
+      elapsedMs: news.appliedAtMs - round.opensAtMs,
+      windowStartMs: previous?.command.atMs ?? round.opensAtMs,
+      afterSequence,
+      throughSequence: news.sequence - 1,
+      assets: news.effects.map((effect) => {
+        const asset = round.config.assets.find(
+          (asset) => asset.symbol === effect.symbol,
+        )!;
+        const executed = trades.filter(
+          (event) => event.payload.symbol === effect.symbol,
+        );
+        const window = executed.filter(
+          (event) => event.sequence > afterSequence,
+        );
+        return {
+          ...effect,
+          name: asset.name,
+          description: asset.description,
+          initialPriceCents: asset.initialPriceCents,
+          lastExecutedPriceCents: executed.at(-1)?.payload.priceCents ?? null,
+          activity: {
+            fillCount: window.length,
+            boughtUnits: window
+              .filter((event) => event.payload.buyerId !== "system:bot")
+              .reduce((total, event) => total + event.payload.quantity, 0),
+            soldUnits: window
+              .filter((event) => event.payload.sellerId !== "system:bot")
+              .reduce((total, event) => total + event.payload.quantity, 0),
+            totalValueCents: window.reduce(
+              (total, event) => total + event.payload.totalValueCents,
+              0,
+            ),
+          },
+        };
+      }),
+    },
+  });
 }
