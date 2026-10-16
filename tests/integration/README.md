@@ -1,5 +1,11 @@
 # Database and service integration tests
 
+`operations.database.test.ts` covers ticket #20 at public HTTP/Socket.IO and worker
+interfaces: distinct liveness/readiness, failed-owner write rejection and recovery,
+client-confirmed commit timing, receipt-to-ack and snapshot measurements, shared
+player rate limits, bounded credential-free logs and optional provider failure
+while scheduled effects continue. See [operator guide](../../docs/operations.md).
+
 `market-baseline.test.ts` runs with `pnpm test`. It starts a real service on an ephemeral loopback port, checks its public projection through the Next.js route, rejects mutations, verifies whole-baseline validation before listening, and checks unavailable/malformed upstream handling. No database or AI credentials are required. The test runner must be allowed to bind local ports.
 
 `round-baseline.database.test.ts` runs with `pnpm db:verify` against the dedicated disposable PostgreSQL instance. It covers migrations, atomic initialization and rollback, concurrent retries, deterministic schedules, frozen resources/configuration, reconnect/readback, and baseline event/projection integrity. See [database setup and verification](../../docs/database.md) for isolation and commands.

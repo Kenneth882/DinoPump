@@ -1,5 +1,9 @@
 import type { Pool } from "pg";
-import { claimCommentary, finishCommentary } from "@dinopump/database";
+import {
+  claimCommentary,
+  finishCommentary,
+  Operations,
+} from "@dinopump/database";
 import {
   commentaryResultSchema,
   type NarrationInput,
@@ -21,8 +25,21 @@ export class CommentaryWorker {
     private pool: Pool,
     private narrator?: Narrator,
     private clock = Date.now,
+    readonly operations = new Operations(),
   ) {}
   async processOne() {
+    try {
+      const result = await this.processClaim();
+      this.operations.gauge("ready", 1);
+      return result;
+    } catch (error) {
+      this.operations.gauge("ready", 0);
+      this.operations.count("database_failures");
+      this.operations.log("storage.unavailable");
+      throw error;
+    }
+  }
+  private async processClaim() {
     const job = await claimCommentary(this.pool, this.clock());
     if (!job) return false;
     const start = performance.now();
@@ -79,16 +96,30 @@ export class CommentaryWorker {
       promptVersion: provenance.promptVersion,
       durationMs: Math.round(performance.now() - start),
     };
-    await finishCommentary(this.pool, job, result, this.clock());
-    console.info(
-      JSON.stringify({
-        event: "commentary.attempt",
-        sourceEventId: job.sourceEventId,
-        jobId: job.sourceEventId,
-        attempt: job.attempts,
-        ...result.provenance,
-      }),
-    );
+    const saved = await finishCommentary(this.pool, job, result, this.clock());
+    if (!saved) this.operations.count("narration_lease_losses");
+    this.operations.observe("narration_ms", result.provenance.durationMs);
+    const outcome = result.provenance.validationStatus;
+    if (outcome === "accepted") this.operations.count("narration_accepted");
+    else if (outcome === "disabled")
+      this.operations.count("narration_disabled");
+    else {
+      this.operations.count("narration_failures");
+      this.operations.count(
+        outcome === "invalid"
+          ? "narration_invalid"
+          : outcome === "timeout"
+            ? "narration_timeout"
+            : "narration_unavailable",
+      );
+    }
+    this.operations.log("commentary.attempt", {
+      jobId: job.sourceEventId,
+      attempt: job.attempts,
+      durationMs: result.provenance.durationMs,
+      outcome,
+      ...(job.input.success ? { roundId: job.input.data.roundId } : {}),
+    });
     return true;
   }
 }

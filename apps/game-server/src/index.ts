@@ -28,7 +28,14 @@ const pool = process.env.DATABASE_URL
   : undefined;
 const baseline = loadBaseline();
 const store = pool
-  ? await LobbyStore.open(pool, Date.now, baseline.rules.room, baseline)
+  ? await LobbyStore.open(pool, Date.now, baseline.rules.room, baseline).catch(
+      async () => {
+        // Database connection failures must not print URLs, credentials or driver errors.
+        console.error(JSON.stringify({ event: "service.start_failed" }));
+        await pool.end();
+        process.exit(1);
+      },
+    )
   : undefined;
 const server = createGameServer(
   baseline,

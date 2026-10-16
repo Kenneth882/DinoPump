@@ -47,6 +47,15 @@ test("two guests trade, receive all nine events, reconnect and finish with no LL
     await expect(host!.getByTestId("trade-result")).toContainText(
       "1 units executed",
     );
+    // Both real browser clients confirm validated batch receipt for ticket #20.
+    await expect
+      .poll(async () => {
+        const metrics = await (
+          await fetch("http://127.0.0.1:3101/metrics")
+        ).json();
+        return metrics.histograms.commit_to_client_ms?.count ?? 0;
+      })
+      .toBeGreaterThanOrEqual(2);
     await writeFile(process.env.DINOPUMP_E2E_CLOCK!, "61000");
     await expect(host!.getByTestId("news-item")).toHaveCount(1);
     const narrator = configuredNarrator({

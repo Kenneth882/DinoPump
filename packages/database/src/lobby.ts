@@ -5,6 +5,7 @@ import {
   verifyFinalResult,
   persistIntegrityAbort,
 } from "./results.js";
+import { Operations } from "./operations.js";
 import { isDeepStrictEqual } from "node:util";
 import { readOrder, persistOrder, readRecentOrders } from "./orders.js";
 import { processEngineCommand } from "@dinopump/engine";
@@ -68,9 +69,14 @@ export class LobbyStore {
     private clock: () => number,
     private roomRules: Baseline["rules"]["room"],
     private baseline: Baseline,
+    readonly operations: Operations,
   ) {
     client.on("error", () => {
+      if (this.available) this.operations.count("database_failures");
       this.available = false;
+      this.operations.gauge("ownership", 0);
+      this.operations.gauge("ready", 0);
+      this.operations.log("storage.unavailable");
       this.engineCache.clear();
     });
   }
@@ -79,6 +85,7 @@ export class LobbyStore {
     clock: () => number = Date.now,
     roomRules: Baseline["rules"]["room"] = loadBaseline().rules.room,
     baseline: Baseline = loadBaseline(),
+    operations = new Operations(),
   ) {
     const rules = gameplayRulesSchema.shape.room.parse(roomRules);
     const client = await pool.connect();
@@ -95,6 +102,7 @@ export class LobbyStore {
           ...baseline,
           rules: { ...baseline.rules, room: rules },
         }),
+        operations,
       );
       const recover = () =>
         store.run(async (db, now) => {
@@ -122,10 +130,11 @@ export class LobbyStore {
         if (!(error instanceof RoundIntegrityError)) throw error;
       });
       await store.processCommentary().catch(() => {
-        console.error(
-          JSON.stringify({ event: "commentary.publication_failed" }),
-        );
+        operations.count("narration_publication_failures");
+        operations.log("commentary.publication_failed");
       });
+      operations.gauge("ownership", 1);
+      operations.gauge("ready", 1);
       return store;
     } catch (error) {
       client.release(true);
@@ -144,9 +153,23 @@ export class LobbyStore {
         const value = await work(this.client, this.clock());
         await this.assertOwnership();
         await this.client.query("COMMIT");
+        const committedAt = this.operations.monotonic();
+        const committedAtMs = this.clock();
         this.engineCache = this.transactionCache;
+        for (const observe of this.afterCommit)
+          observe(committedAt, committedAtMs);
+        this.afterCommit = [];
         return value;
       } catch (error) {
+        this.afterCommit = [];
+        if (
+          !(error instanceof LobbyError) &&
+          !(error instanceof TradingError) &&
+          !(error instanceof RoundIntegrityError)
+        ) {
+          this.operations.count("database_failures");
+          this.operations.log("storage.unavailable");
+        }
         this.engineCache.clear();
         this.transactionCache.clear();
         await this.client.query("ROLLBACK").catch(() => {
@@ -176,6 +199,10 @@ export class LobbyStore {
               );
             await this.assertOwnership();
             await this.client.query("COMMIT");
+            if (aborted) {
+              this.operations.count("integrity_aborts");
+              this.operations.log("round.aborted", { roundId: error.roundId });
+            }
           } catch (abortError) {
             await this.client.query("ROLLBACK").catch(() => {
               this.available = false;
@@ -229,13 +256,17 @@ export class LobbyStore {
       AND classid=18474 AND objid=(hashtext(current_schema())::bigint & 4294967295)::oid
       AND objsubid=2 AND granted) AS owned`);
     if (!owned.rows[0]?.owned) {
+      this.operations.count("ownership_losses");
+      this.operations.log("ownership.lost");
+      this.operations.gauge("ownership", 0);
+      this.operations.gauge("ready", 0);
       this.available = false;
       throw new LobbyError("SERVICE_UNAVAILABLE");
     }
   }
   async isReady() {
     try {
-      return await this.run(async (client, now) => {
+      const ready = await this.run(async (client, now) => {
         const rooms = await client.query(
           "SELECT current_round_id FROM rooms WHERE current_round_id IS NOT NULL AND status<>'ABORTED'",
         );
@@ -252,7 +283,12 @@ export class LobbyStore {
         }
         return true;
       });
+      this.operations.gauge("ready", ready ? 1 : 0);
+      this.operations.log(ready ? "service.ready" : "service.unready");
+      return ready;
     } catch {
+      this.operations.gauge("ready", 0);
+      this.operations.log("service.unready");
       return false;
     }
   }
@@ -261,6 +297,8 @@ export class LobbyStore {
     if (this.closed) return;
     this.closed = true;
     this.available = false;
+    this.operations.gauge("ownership", 0);
+    this.operations.gauge("ready", 0);
     this.engineCache.clear();
     this.orderBudgets.clear();
     // Release ownership before the socket closes asynchronously, so immediate
@@ -272,21 +310,14 @@ export class LobbyStore {
   }
   private closed = false;
   private orderBudgets = new Map<string, { tokens: number; at: number }>();
-  private rejectionCounts: Record<string, number> = {};
-  private lastRejectionLog = 0;
+  private afterCommit: ((
+    committedAt: number,
+    committedAtMs: number,
+  ) => void)[] = [];
   private transportRejection(code: "INVALID_REQUEST" | "RATE_LIMITED") {
-    this.rejectionCounts[code] = (this.rejectionCounts[code] ?? 0) + 1;
-    const at = this.clock();
-    if (at - this.lastRejectionLog >= 30_000) {
-      console.info(
-        JSON.stringify({
-          event: "orders.transport_rejected",
-          counts: this.rejectionCounts,
-        }),
-      );
-      this.rejectionCounts = {};
-      this.lastRejectionLog = at;
-    }
+    this.operations.count(
+      code === "INVALID_REQUEST" ? "orders_invalid" : "orders_rate_limited",
+    );
     return new TradingError(code);
   }
   private consumeOrderToken(playerId: string, now: number) {
@@ -393,6 +424,24 @@ export class LobbyStore {
         batch,
         now,
       );
+      this.afterCommit.push(() =>
+        this.operations.log("order.completed", {
+          roomCode: code,
+          roundId: request.roundId,
+          requestId: request.requestId,
+          sequence: outcome.sequence,
+          ...(outcome.rejectionCode
+            ? { rejectionCode: outcome.rejectionCode }
+            : {}),
+        }),
+      );
+      if (batch) {
+        const end = resultState.sequence;
+        const start = end - batch.events.length + 1;
+        this.afterCommit.push((committedAt) =>
+          this.operations.committed(request.roundId, start, end, committedAt),
+        );
+      }
       await client.query("UPDATE rooms SET sequence=sequence+1 WHERE code=$1", [
         code,
       ]);
@@ -1009,6 +1058,29 @@ export class LobbyStore {
         scheduledEventId: event.scheduledEventId,
         dueAtMs: event.dueAtMs,
       }));
+    for (const event of applied)
+      this.afterCommit.push((_committedAt, committedAtMs) => {
+        const lag = Math.max(0, committedAtMs - event.dueAtMs);
+        this.operations.observe("scheduler_lag_ms", lag);
+        this.operations.log("scheduler.applied", {
+          roomCode: room.rows[0].code,
+          roundId,
+          sequence: state.sequence,
+          durationMs: lag,
+          dueAtMs: event.dueAtMs,
+          committedAtMs,
+          lagMs: lag,
+        });
+      });
+    if (state.sequence !== initial.sequence)
+      this.afterCommit.push((committedAt) =>
+        this.operations.committed(
+          roundId,
+          initial.sequence + 1,
+          state.sequence,
+          committedAt,
+        ),
+      );
     if (state.sequence !== initial.sequence)
       await client.query("UPDATE rooms SET sequence=sequence+1 WHERE code=$1", [
         room.rows[0].code,
@@ -1206,6 +1278,14 @@ export class LobbyStore {
         const input = roundInitializationSchema.parse(initialization);
         if (now < input.opensAtMs) continue;
         const state = await persistRoundOpening(client, input);
+        this.afterCommit.push((committedAt) =>
+          this.operations.committed(
+            state.round.roundId,
+            1,
+            state.sequence,
+            committedAt,
+          ),
+        );
         this.transactionCache.set(state.round.roundId, state);
         await client.query(
           "UPDATE rooms SET status='OPEN',current_round_id=$2,sequence=sequence+1,host_transfer_at=NULL,expires_at=NULL WHERE code=$1",
