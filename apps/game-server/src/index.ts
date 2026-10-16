@@ -1,9 +1,12 @@
 import { Pool } from "pg";
 import { loadBaseline } from "@dinopump/game-content";
-import { LobbyStore } from "@dinopump/database";
+import { LobbyStore, databaseConnection } from "@dinopump/database";
 import { createGameServer } from "./server.js";
 
-const port = Number(process.env.GAME_SERVER_PORT ?? 3001);
+const port = Number(process.env.PORT ?? process.env.GAME_SERVER_PORT ?? 3001);
+const host = process.env.GAME_SERVER_HOST ?? "127.0.0.1";
+if (!["127.0.0.1", "0.0.0.0"].includes(host))
+  throw new Error("GAME_SERVER_HOST must be 127.0.0.1 or 0.0.0.0");
 if (!Number.isInteger(port) || port < 1 || port > 65535)
   throw new Error("GAME_SERVER_PORT must be an integer between 1 and 65535");
 const webOrigin = process.env.WEB_ORIGIN ?? "http://127.0.0.1:3000";
@@ -20,12 +23,37 @@ if (
   );
 }
 const pool = process.env.DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 5000,
-      statement_timeout: 5000,
-    })
+  ? new Pool(databaseConnection())
   : undefined;
+let deployment:
+  | { id: string; purpose: string; sourceCommit: string; webOrigin: string }
+  | undefined;
+if (process.env.DINOPUMP_DEPLOYMENT_ID) {
+  const id = process.env.DINOPUMP_DEPLOYMENT_ID;
+  const sourceCommit =
+    process.env.RENDER_GIT_COMMIT ?? process.env.SOURCE_COMMIT ?? "";
+  if (
+    !/^[a-f0-9]{32}$/.test(id) ||
+    !/^[a-f0-9]{40}$/.test(sourceCommit) ||
+    !pool
+  )
+    throw new Error("Invalid staging deployment identity");
+  try {
+    const marker = await pool.query(
+      "SELECT id, purpose FROM deployment_identity",
+    );
+    if (
+      marker.rows.length !== 1 ||
+      marker.rows[0].id !== id ||
+      marker.rows[0].purpose !== "synthetic-staging"
+    )
+      throw new Error("Mismatch");
+  } catch {
+    await pool.end();
+    throw new Error("Staging database identity verification failed");
+  }
+  deployment = { id, purpose: "synthetic-staging", sourceCommit, webOrigin };
+}
 const baseline = loadBaseline();
 const store = pool
   ? await LobbyStore.open(pool, Date.now, baseline.rules.room, baseline).catch(
@@ -40,9 +68,10 @@ const store = pool
 const server = createGameServer(
   baseline,
   store ? { store, webOrigin, secureCookies } : undefined,
+  deployment,
 );
-server.listen(port, "127.0.0.1", () =>
-  console.info(`DinoPump service listening on http://127.0.0.1:${port}`),
+server.listen(port, host, () =>
+  console.info(JSON.stringify({ event: "service.listening", host, port })),
 );
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () =>

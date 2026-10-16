@@ -34,3 +34,13 @@ Rehearse documented installation/start/migration/test/no-key round commands in a
 Blocked by: #21.
 
 - [#21](https://github.com/Kenneth882/DinoPump/issues/21): Record an eight-client round and the complete acceptance gates
+
+## October 16 prerequisite extraction
+
+The user authorized the minimum hosting configuration needed for #21's staged
+Supabase + Render validation before full #22 completion: production binding and
+HTTPS proxy, verified session-mode PostgreSQL, separate runtime/migration/audit
+credentials, startup/ownership procedures, and the deployment/teardown plan.
+See [the staging plan](../../staging-deployment.md). The complete fresh-checkout,
+optional worker, restore and release-readiness gates remain open; this extraction
+does not close #22 or waive its dependency on #21's completed evidence.

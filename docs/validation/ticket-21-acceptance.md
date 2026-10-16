@@ -523,3 +523,58 @@ retained sustained report agrees with the evidence summary.
 Review totals: **0 remaining hard Standards violations; 1 optional duplication
 heuristic; 0 remaining Spec findings**. Deployment-region acceptance remains
 unverified regardless of local results.
+
+## Deployment preparation continuation (October 16, 2026)
+
+Starting commit `4cef8a79d536fc6f676ac53cee85f379a8f75fbe`, same `ticket21`
+branch. User-approved seams: production HTTP/Socket.IO ingress, database
+connection/role setup, and the existing eight-client runner. The untracked
+`scripts/setup-hosting.sh` and ignored account credentials were preserved.
+The minimum #22 prerequisite is in [the staging execution plan](../staging-deployment.md)
+and [Render template](../../deploy/render.staging.yaml). No hosted resources
+were provisioned or deployed by this work, and no acceptance target changed.
+
+The staged adapter calls the same workload/assertions through public HTTPS and
+private operator metrics, and verifies persisted history with a SELECT-only
+login. It requires a new synthetic identity, fresh data, a matching game/source
+identity and secure cookies. Its cleanup closes connections only. The original
+loopback runner retains its isolated-schema cleanup guards.
+
+Actual checks so far:
+
+- TLS/session connection guard: test failed before implementation (missing module),
+  then passed. Hosted connections require an explicit CA and reject SSL URL
+  overrides; Supabase transaction pooling is rejected.
+- Restricted-role integration: initial execution needed local socket permission;
+  the authorized rerun passed. A real game owner starts under the runtime login;
+  audit cannot write, game cannot create tables/change its identity marker, and
+  audit cannot execute commentary functions.
+- First local HTTPS rehearsal failed at the cookie assertion: the new assertion
+  incorrectly expected Lax while the existing contract uses Strict. The assertion
+  was corrected to Strict; product cookie policy did not change. The
+  [failed report](artifacts/ticket-21-staging-cookie-assertion-failure.json) is retained.
+- The [production-ingress smoke](artifacts/ticket-21-staging-smoke.json) passed
+  **480/480** offers, no skipped/unoffered attempts, acknowledgement p95 upper
+  bound **200ms**, delivery p95 upper bound **25ms**, complete private/public
+  deliveries, identical streams and replay/resource integrity. It uses actual
+  production game/Next.js binaries behind a trusted temporary localhost HTTPS
+  terminator with PostgreSQL 18.6 on tmpfs. It is **smoke only**: no nine-event or
+  full-round gate is claimed. It also is not evidence of managed PostgreSQL TLS,
+  Render capacity/placement or Supabase compatibility.
+- `pnpm check` passed: lint, format, typechecking, **227 tests in 13 files**, and
+  production builds. Later source/configuration refinements are being checked
+  separately; final results are recorded below when complete.
+
+| AC / gate         | Additional boundary                                                                               | Current status                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| AC-05/10/18       | Production HTTPS proxy, Secure/HttpOnly/Strict cookie, private operator routes                    | Local smoke passed; hosted ingress unverified                                |
+| AC-08/12/16       | Same eight-client assertions through staged adapter, restricted replay login                      | Local smoke passed; full hosted run unverified                               |
+| AC-09/11/13/18    | Nine events and ten-minute no-key final results on candidate topology                             | Hosted run unverified; prior local sustained evidence retained               |
+| AC-14/15          | Owner lock/recovery and durable hosted storage                                                    | Local suites support behavior; provider restart/ownership/restore unverified |
+| AC-17             | Desktop/360px journey                                                                             | Prior browser evidence retained; continuation results below                  |
+| #22 minimum setup | Render config, separate credentials, verified TLS/session settings, startup/teardown instructions | Prepared locally; provider validation awaits approval                        |
+
+Deployment-region acceptance and #21 remain **OPEN / UNVERIFIED**. A report's
+candidate region description is not provider placement evidence. Attach actual
+redacted service/project inventory and source revisions to any future run. Full
+#22 fresh-checkout/optional-worker/backup-restore and release gates remain separate.

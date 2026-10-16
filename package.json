@@ -27,7 +27,9 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "build:shared": "pnpm -r --filter @dinopump/contracts --filter @dinopump/game-content --filter @dinopump/engine --filter @dinopump/database build",
     "worker": "pnpm --filter @dinopump/commentary-worker dev",
-    "db:worker-role": "pnpm --filter @dinopump/database provision-commentary"
+    "db:worker-role": "pnpm --filter @dinopump/database provision-commentary",
+    "staging:prepare": "pnpm build:shared && node --import tsx scripts/prepare-staging.ts",
+    "test:staging-local": "pnpm build:shared && node --import tsx scripts/test-staging-local.ts"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.3.5",

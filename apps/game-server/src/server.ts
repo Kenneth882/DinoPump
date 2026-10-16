@@ -10,6 +10,12 @@ import { loadBaseline } from "@dinopump/game-content";
 export function createGameServer(
   content: unknown = loadBaseline(),
   lobby?: LobbyOptions,
+  deployment?: {
+    id: string;
+    purpose: string;
+    sourceCommit: string;
+    webOrigin: string;
+  },
 ) {
   // Validate before creating a listener, including content unused by this endpoint.
   const baseline = baselineSchema.parse(content);
@@ -26,6 +32,15 @@ export function createGameServer(
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Cache-Control", "no-store");
     const path = request.url?.split("?", 1)[0];
+    // Private-service operator route; the web proxy never forwards this path.
+    if (
+      path === "/operator/deployment" &&
+      deployment &&
+      request.method === "GET"
+    ) {
+      response.end(JSON.stringify(deployment));
+      return;
+    }
     if (path === "/metrics") {
       if (request.method !== "GET") {
         response.statusCode = 405;

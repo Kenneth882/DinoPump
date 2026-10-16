@@ -11,7 +11,8 @@ Deployment, spending, and capacity validation have not occurred. See the
 - The live game must be available without the developer starting it on request.
 - The user revised the initial USD 10/month preference to **USD 39/month base**:
   Supabase Pro at USD 25 plus two Render services at USD 7 each. Tax and metered
-  extras are additional; an all-in spending ceiling remains to be settled.
+  extras are additional; the ignored account-preparation record now specifies a USD 50 all-in ceiling,
+  subject to approval of actual resources and current quotes.
 - **USD 10 total** remains the allowance for temporary validation. Budget choices
   authorize planning, not provisioning or spending.
 - Use the included HTTPS address and preserve the existing two-to-eight-player
@@ -62,8 +63,9 @@ For the deployed topology, add an environment adapter around the existing
 workload and assertions. It must connect to a dedicated synthetic staging
 deployment, collect private operator metrics, and perform replay verification
 against that deployment's database. Preserve the local runner's isolation and
-cleanup guards. No deployed-target adapter or remote-target CLI option exists
-today. Do not repoint its destructive schema cleanup at a live database.
+cleanup guards. The staged adapter and `--staging` CLI now reuse this workload with a read-only
+replay login and private metrics. See the [execution plan](staging-deployment.md).
+Do not repoint local destructive schema cleanup at a hosted database.
 
 ## Selected topology and base cost
 
@@ -132,14 +134,14 @@ and no-key operation. These deployment gates remain explicit:
 
 | Remaining item                   | Recommended next step / decision boundary                                                                                                                                                                    |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| All-in monthly limit             | Agree a ceiling covering tax and metered use before provisioning; USD 39 is a base estimate, not a guaranteed maximum.                                                                                       |
+| All-in monthly limit             | Account preparation records a USD 50 all-in ceiling; approve the concrete resources/current quote before provisioning. USD 39 remains only the base estimate.                                                |
 | Usage costs                      | Measure database growth, cross-provider traffic, public Socket.IO delivery and build usage. Keep Supabase's spend cap on; review Render billing controls and alerts. Neither is a universal hard bill cap.   |
 | Capacity                         | Validate both 512MB service tiers and Supabase Micro. Record failure honestly; do not auto-upgrade or weaken the targets.                                                                                    |
 | Host configuration               | Resolve container binding/ports, HTTPS proxy, secrets, readiness and database migration startup order in #22's deployment configuration.                                                                     |
 | Ownership-safe rollout           | Verify a stop/start or explicit handoff procedure: the new game cannot acquire its session lock while the old owner holds it. A default overlapping rollout can fail before the new service becomes ready.   |
 | Restore operation                | Confirm acceptable loss window/recovery time and the maintenance operator; test the included daily backups and immutable replay. Normal unattended startup does not imply zero maintenance or zero downtime. |
 | Staging isolation                | Use separate synthetic staging services and a separate Pro Micro project in the same Supabase organization. Match live tiers and regions; never run the load suite against recruiter sessions.               |
-| Load generator                   | Select an authorized Docker-capable US East runner, separate from deployed application compute. Record its exact region and resources; a same-host tmpfs baseline remains supporting evidence only.          |
+| Load generator                   | Propose a temporary Render Virginia 1 CPU / 2GB runner, separate from app compute. The staged adapter needs Node only; Docker remains required for local isolated tests.                                     |
 | Validation lifetime and teardown | Recommend a maximum 24-hour staging/runner window, named teardown owner, and evidence export before deletion. Price the complete set below the USD 10 allowance before authorization.                        |
 | Final authorization              | Provisioning/deployment and deletion of the designated temporary resources require a concrete authorized action; this document does not execute them.                                                        |
 
@@ -166,9 +168,9 @@ existing credits, or account-specific quote was inspected.
 
 ## Implementation and acceptance gates
 
-Production ingress remains work: game and Next.js currently bind to loopback.
-The separate Render services need suitable binding/port configuration. Verify
-same-origin secure cookies,
+The local implementation now supports production bind/port configuration and
+rehearses Next.js production ingress with a temporary HTTPS terminator. Hosted
+validation is still required. Verify same-origin secure cookies,
 Socket.IO upgrade forwarding, and restricted operator metrics. Keep one game
 owner and verify recovery around restarts and overlapping releases.
 
@@ -184,7 +186,10 @@ AC-18 is the primary performance gate; AC-08/09/10/11/12/13/16 support load
 integrity. AC-14/15 recovery and AC-17 browser journeys need their separate
 evidence. No-key play remains required.
 
-This planning session has not run deployment tests or provisioned resources.
+This plan has not established hosted deployment evidence. Local preparation and
+actual rehearsal results are tracked in the [evidence matrix](validation/ticket-21-acceptance.md).
+See the [concrete staging approval plan](staging-deployment.md) for resources,
+costs, startup, measurements and teardown.
 Keep #21 and release readiness open until actual topology evidence and the
 remaining gates pass. Hosting choices fit [architecture §7](spec/architecture.md)
 and [baseline decisions §15](spec/product-and-scope.md); no gameplay requirement

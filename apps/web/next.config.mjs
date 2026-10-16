@@ -5,7 +5,15 @@ import { fileURLToPath } from "node:url";
 // Load the shared local environment without forwarding Node CLI flags through
 // Next.js's development workers. Explicit process environment values take priority.
 const rootEnv = fileURLToPath(new URL("../../.env", import.meta.url));
-if (existsSync(rootEnv)) loadEnvFile(rootEnv);
+if (process.env.NODE_ENV !== "production" && existsSync(rootEnv))
+  loadEnvFile(rootEnv);
+
+// Render supplies a private host:port reference before both build and runtime.
+if (!process.env.GAME_SERVER_ORIGIN && process.env.GAME_SERVER_HOSTPORT) {
+  if (!/^[a-zA-Z0-9.-]+:[0-9]+$/.test(process.env.GAME_SERVER_HOSTPORT))
+    throw new Error("Invalid GAME_SERVER_HOSTPORT");
+  process.env.GAME_SERVER_ORIGIN = `http://${process.env.GAME_SERVER_HOSTPORT}`;
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
