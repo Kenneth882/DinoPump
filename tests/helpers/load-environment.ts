@@ -124,9 +124,12 @@ export async function stagingLoadEnvironment(
     decodeURIComponent(url.username).split(".")[0] === `audit_${id}`,
     "Read-only staging login required",
   );
-  const pool = new Pool(
-    databaseConnection({ ...process.env, DATABASE_URL: url.href }),
-  );
+  const pool = new Pool({
+    ...databaseConnection({ ...process.env, DATABASE_URL: url.href }),
+    // Like the original isolated harness, offline full-history replay has no
+    // live-command SQL timeout. All online latency gates remain unchanged.
+    statement_timeout: 0,
+  });
   try {
     const marker = await pool.query(
       "SELECT id, purpose FROM deployment_identity",
@@ -199,8 +202,9 @@ export async function stagingLoadEnvironment(
       webOrigin: origin.origin,
       metricsOrigin: metrics.origin,
       metadata: {
-        topology:
-          "HTTPS web proxy -> private game -> durable PostgreSQL; separate load process",
+        topology: rehearsal
+          ? "localhost HTTPS terminator -> production web/game -> tmpfs PostgreSQL; same host"
+          : "HTTPS web proxy -> private game -> managed PostgreSQL; separate runner",
         deployment: identity,
         llmKey:
           "staging runner supplies no provider; verify game/worker deployment inventory",

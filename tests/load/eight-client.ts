@@ -572,6 +572,14 @@ try {
   if (skipped || completed !== submitted || submitted !== expectedOffers)
     failures.push("Incomplete offered workload");
 } catch (error) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    ["57014", "42501", "08006", "08001", "53300", "53200"].includes(error.code)
+  )
+    report.databaseFailureCode = error.code;
   report.failureKind =
     error instanceof assert.AssertionError
       ? `assertion: ${error.operator}`

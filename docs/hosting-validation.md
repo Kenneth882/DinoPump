@@ -34,7 +34,7 @@ The [load guide](load-testing.md), [runner](../scripts/test-load.mjs),
 [eight-client workload](../tests/load/eight-client.ts), and
 [game helper](../tests/helpers/load-game-server.ts) establish these boundaries:
 
-- The runner starts Docker PostgreSQL 18.6 on tmpfs and a real game process on
+- In local mode, the runner starts Docker PostgreSQL 18.6 on tmpfs and a real game process on
   loopback, using an isolated synthetic schema. It does not target an existing
   deployment or managed database.
 - The web app, HTTPS, production proxy, and persistent disk are outside this run.
@@ -59,8 +59,8 @@ offers five orders per second per player throughout the real ten-minute round.
 Retain `test-results/load-<UTC timestamp>/report.json` and the actual host,
 storage, database version, ingress, source revision, and configuration metadata.
 
-For the deployed topology, add an environment adapter around the existing
-workload and assertions. It must connect to a dedicated synthetic staging
+The deployed-topology adapter wraps the existing workload and assertions.
+It must connect to a dedicated synthetic staging
 deployment, collect private operator metrics, and perform replay verification
 against that deployment's database. Preserve the local runner's isolation and
 cleanup guards. The staged adapter and `--staging` CLI now reuse this workload with a read-only

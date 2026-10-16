@@ -150,7 +150,9 @@ is separate from this minimum prerequisite.
    available with `--smoke --sustained` but consumes that fresh deployment; it
    never substitutes for the full ten-minute run. The adapter rejects used
    schemas, writable audit credentials, mismatched game/database/source IDs,
-   insecure cookies and public operator routes. It does not migrate or delete.
+   insecure cookies and public operator routes. It does not migrate or delete. Its offline audit query retains the original
+   harness's unlimited SQL statement duration; the game connection keeps its
+   five-second statement timeout and every online acceptance threshold is unchanged.
 
 5. Preserve `test-results/load-*/report.json` before any restart or teardown.
    The default workload, offered-load accounting, complete private/public

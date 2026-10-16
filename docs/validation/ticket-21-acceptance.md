@@ -578,3 +578,44 @@ Deployment-region acceptance and #21 remain **OPEN / UNVERIFIED**. A report's
 candidate region description is not provider placement evidence. Attach actual
 redacted service/project inventory and source revisions to any future run. Full
 #22 fresh-checkout/optional-worker/backup-restore and release gates remain separate.
+
+### Continued validation and first sustained rehearsal
+
+The complete database suite passed **134 tests in 13 files**. The complete
+browser suite passed **11 Chromium tests in 8 files**, including desktop and
+360px journeys. Final source typechecking passed after the Render host:port
+reference wiring. Both independent reviews of `4cef8a7...3a19798` reported
+**zero Standards violations/actionable smells and zero Spec findings**.
+
+The [first local production sustained run](artifacts/ticket-21-staging-sustained-local.json)
+**failed**: 23,350 submitted of 23,992 expected offers, 23,207 completed,
+642 skipped, zero unoffered, and 143 rate-limit responses. Final server
+acknowledgement histogram p95 upper bound was **5,000ms** (maximum 9,932ms);
+client RTT p95 was **4,483.6ms**. The complete eight streams matched,
+23,207 private results and 167,184 public confirmations were captured, and
+no public delivery timeout occurred. Snapshot maximum was **248.9ms**;
+all nine scheduler measurements were within **125ms**. Delivery p95 upper
+bound was **25ms**. These passing submeasurements do not rescue the failed load.
+
+This run then stopped at **verify persisted history and projection** with a
+database error before producing an integrity verdict. Replay, conservation and
+final-result comparisons are therefore **unverified in this report**. Its original
+SQLSTATE was not retained; do not treat the timeout explanation as proven.
+Inspection found the staged audit pool inherited the game connection's 5-second
+statement timeout, which the original isolated replay pool does not have. The
+adapter now preserves the original unlimited offline SQL duration; the game
+keeps its 5-second setting and all online thresholds remain identical. Future
+reports retain only a small allowlist of SQLSTATE codes, never SQL/error details.
+The first artifacts' generic topology text says "durable PostgreSQL" even in
+rehearsal mode: those runs actually used **local tmpfs**, not persistent storage.
+The metadata now distinguishes this explicitly; retained artifacts are unchanged.
+
+During the slowdown, sampled mean persistence plus publication was roughly
+30ms/order, over the 25ms budget for 40 orders/second. Other host processes were
+consuming CPU; none were stopped. This observation does not establish causality.
+The [subsequent direct growth control](artifacts/ticket-21-direct-growth-control.json)
+passed **2,400/2,400 offers**, no skips/unoffered/rejected transport attempts,
+acknowledgement p95 upper bound **200ms**, delivery **25ms**, and all applicable
+growth/replay gates. It uses the original direct helper, not the HTTPS topology;
+it cannot isolate transient contention from runtime/role/proxy differences.
+The full staged rerun after audit configuration correction is recorded below.
