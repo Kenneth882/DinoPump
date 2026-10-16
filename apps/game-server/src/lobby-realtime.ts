@@ -18,6 +18,7 @@ import { safeError, sessionSecret, type LobbyOptions } from "./lobby-http.js";
 
 /** Serialize subscription, committed mutations and fresh snapshots in one owner. */
 export function attachLobby(server: HttpServer, options: LobbyOptions) {
+  const operations = options.store.operations;
   const io = new Server(server, {
     maxHttpBufferSize: 4096,
     cors: { origin: options.webOrigin, credentials: true },
@@ -38,7 +39,15 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     }
   >();
   let tail: Promise<unknown> = Promise.resolve();
+  function connections() {
+    operations.gauge("connected_sockets", members.size);
+    operations.gauge(
+      "connected_players",
+      new Set([...members.values()].map((member) => member.playerId)).size,
+    );
+  }
   const reactionCooldowns = new Map<string, number>();
+  const initialSnapshots = new WeakMap<Socket, number>();
   function serial<T>(work: () => Promise<T>) {
     const result = tail.then(work);
     tail = result.catch(() => {});
@@ -47,6 +56,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
   async function remove(socket: Socket) {
     const member = members.get(socket);
     members.delete(socket);
+    connections();
     if (
       member &&
       ![...members.values()].some(
@@ -75,7 +85,20 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       }
       const snapshot = delivery.snapshot;
       for (const batch of delivery.batches) {
-        socket.emit("market:batch", batch);
+        const committedAt = operations.deliveryStart(
+          batch.roundId,
+          batch.endSequence,
+        );
+        if (committedAt === undefined) socket.emit("market:batch", batch);
+        else
+          socket.timeout(1000).emit("market:batch", batch, (error: unknown) => {
+            if (error) operations.count("delivery_timeouts");
+            else
+              operations.observe(
+                "commit_to_client_ms",
+                operations.monotonic() - committedAt,
+              );
+          });
         for (const news of batch.news) socket.emit("news:update", news);
       }
       if (snapshot.serverTime - (member.heartbeatAt ?? 0) >= 1000) {
@@ -103,6 +126,11 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
           if (item.narrationStatus !== "pending")
             socket.emit("news:update", item);
         socket.emit("room:snapshot", snapshot);
+        const started = initialSnapshots.get(socket);
+        if (started !== undefined) {
+          operations.observe("snapshot_ms", operations.monotonic() - started);
+          initialSnapshots.delete(socket);
+        }
         socket.emit("presence:update", snapshot);
         member.sequence = snapshot.sequence;
       }
@@ -139,6 +167,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       return result;
     });
   io.use((socket, next) => {
+    initialSnapshots.set(socket, operations.monotonic());
     void serial(async () => {
       const parsed = lobbySubscriptionSchema.safeParse(socket.handshake.auth);
       if (!parsed.success) throw new LobbyError("INVALID_REQUEST");
@@ -222,6 +251,17 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       if (typeof ack === "function") ack(body);
     }
     socket.on("order:submit", (payload: unknown, ack: unknown) => {
+      const receivedAt = operations.monotonic();
+      operations.count("orders_received");
+      const acknowledge = (body: unknown) => {
+        if (typeof ack === "function") {
+          ack(body);
+          operations.observe(
+            "order_ack_ms",
+            operations.monotonic() - receivedAt,
+          );
+        }
+      };
       void serial(async () => {
         const member = members.get(socket);
         if (!member) throw new LobbyError("FORBIDDEN");
@@ -232,7 +272,8 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         );
         await publish();
         await deliverOrder(member.playerId, member.code, result);
-        if (typeof ack === "function") ack(result);
+        if (result.status === "REJECTED") operations.count("orders_rejected");
+        acknowledge(result);
       }).catch((error: unknown) => {
         const code =
           error instanceof TradingError || error instanceof LobbyError
@@ -250,7 +291,12 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
             : {}),
         };
         socket.emit("command:error", body);
-        if (typeof ack === "function") ack(body);
+        operations.count("orders_rejected");
+        operations.log("order.rejected", {
+          rejectionCode: code,
+          ...(requestId.success ? { requestId: requestId.data.requestId } : {}),
+        });
+        acknowledge(body);
       });
     });
     socket.on("round:start", (payload: unknown, ack: unknown) => {
@@ -304,11 +350,13 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         playerId: player.playerId,
         sequence: -1,
       });
+      connections();
     }).catch((error: unknown) => {
       socket.emit("command:error", safeError(error));
       socket.disconnect(true);
     });
     socket.on("room:resync", (payload: unknown, ack: unknown) => {
+      const receivedAt = operations.monotonic();
       void serial(async () => {
         const parsed = roomResyncSchema
           .or(lobbyResyncSchema)
@@ -338,6 +386,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
               : {}),
             snapshot,
           });
+        operations.observe("snapshot_ms", operations.monotonic() - receivedAt);
       }).catch((error: unknown) => {
         const parsed = roundStartSchema.passthrough().safeParse(payload);
         const body = {
@@ -356,9 +405,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
     if (ticking) return;
     ticking = true;
     void execute(async () => {
-      const applied = await options.store.processDue();
-      for (const event of applied)
-        console.info(JSON.stringify({ event: "scheduler.applied", ...event }));
+      await options.store.processDue();
     })
       .then(() =>
         serial(async () => {
@@ -368,9 +415,8 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
           try {
             publishedCount = await options.store.processCommentary();
           } catch {
-            console.error(
-              JSON.stringify({ event: "commentary.publication_failed" }),
-            );
+            operations.count("narration_publication_failures");
+            operations.log("commentary.publication_failed");
           }
           if (publishedCount) await publish();
         }),

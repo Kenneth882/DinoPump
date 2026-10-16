@@ -26,6 +26,24 @@ export function createGameServer(
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Cache-Control", "no-store");
     const path = request.url?.split("?", 1)[0];
+    if (path === "/metrics") {
+      if (request.method !== "GET") {
+        response.statusCode = 405;
+        response.setHeader("Allow", "GET");
+        response.end(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }));
+      } else {
+        response.end(
+          JSON.stringify(
+            lobby?.store.operations.snapshot() ?? {
+              counters: {},
+              gauges: { ready: 0, ownership: 0 },
+              histograms: {},
+            },
+          ),
+        );
+      }
+      return;
+    }
     if (path === "/readyz") {
       if (request.method !== "GET") {
         response.statusCode = 405;

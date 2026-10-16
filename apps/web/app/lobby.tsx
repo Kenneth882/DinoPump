@@ -602,12 +602,14 @@ export function Lobby() {
       sendTrade();
     }
     socket.on("room:snapshot", receiveSnapshot);
-    socket.on("market:batch", (data: unknown) => {
+    socket.on("market:batch", (data: unknown, delivered?: () => void) => {
       const parsed = marketBatchSchema.safeParse(data);
       if (!parsed.success) {
         requestSnapshot();
         return;
       }
+      // Confirms receipt of a validated complete batch, without delaying trading.
+      if (typeof delivered === "function") delivered();
       if (!visible?.round || parsed.data.roundId !== visible.round.roundId) {
         requestAfterTransition(parsed.data.roundId, parsed.data.endSequence);
         return;

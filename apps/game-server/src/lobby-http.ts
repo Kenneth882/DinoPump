@@ -60,6 +60,7 @@ export async function lobbyHttp(
   response: ServerResponse,
   options: LobbyOptions,
 ) {
+  const receivedAt = options.store.operations.monotonic();
   try {
     if (
       request.headers.origin !== options.webOrigin &&
@@ -127,6 +128,10 @@ export async function lobbyHttp(
       if (match[2] === "snapshot" && request.method === "GET") {
         response.end(
           JSON.stringify(await options.store.snapshot(secret, code)),
+        );
+        options.store.operations.observe(
+          "snapshot_ms",
+          options.store.operations.monotonic() - receivedAt,
         );
         return;
       }

@@ -349,6 +349,7 @@ All commands use runtime validation. The server derives player identity from the
 - `GET /api/rooms/:code/snapshot`: retrieve authorized current room state.
 - `GET /api/rounds/:roundId/results`: retrieve results for a participant.
 - `GET /healthz` and `GET /readyz`: process health and readiness to serve.
+- `GET /metrics`: process-local operational JSON counters, gauges and millisecond histograms without player/private data. Collect on the operator network. The separate worker exposes the same probes on its loopback health port; provider failures do not define market readiness.
 
 ### Socket.IO messages
 
@@ -431,6 +432,14 @@ Reactions are transient: request IDs correlate acknowledgements, not durable rec
 `news:update` and authorized snapshots retain all authored fields and add `narrationStatus` (`pending`, `fallback`, or `published`). Terminal narration includes `narrationProvenance` with provider, model, prompt version, duration milliseconds and validation status. Accepted copy adds `narration: { headline, commentary, capturedAtMs, elapsedMs }`. Render only its commentary as plain text labeled “AI narration” and “As of m:ss”; preserve the authored headline and timestamp. Pending/fallback cards have no empty AI section or loading/error state.
 
 The owner commits and delivers market changes first, then publishes durable worker output through a separate transaction in its serialized queue. Commentary statements are bounded to 100ms with a 50ms lock timeout; publication failure preserves committed gameplay and client connections and leaves output available for retry. Successful publication advances room visibility and emits the enriched source item after commit. Commentary does not advance the market cursor or alter results. Snapshot replacement recovers missed updates, including late publication after closing. The browser enriches only an already-applied source in its visible round and ignores old-round messages. The restricted worker has no transport publication authority.
+
+### Operational telemetry (ticket #20 stage)
+
+Game and worker `/metrics` expose cumulative process-local counters, gauges and millisecond histograms without private payloads. Order acknowledgement timing starts at transport handler receipt before queueing and ends when the server issues the acknowledgement after committed publication. Snapshot timing starts at HTTP/resync/handshake receipt and ends at successful response or snapshot emission. Scheduler lag measures persisted due time through successful commit, including order-triggered catch-up.
+
+Live `market:batch` deliveries may include an optional Socket.IO acknowledgement callback. Clients call it after validating a complete batch; it confirms receipt only and has no gameplay authority. Commit-to-client timing starts immediately after database COMMIT completes and ends on receipt of that confirmation; missing confirmations time out after one second and count separately. Historical recovery without a live commit timestamp produces no latency sample. Confirmation never delays scheduled effects, acknowledgements or trading.
+
+Logs admit only fixed event names, validated correlation IDs, known error/outcome codes and numeric timing/sequence fields; event samples are bounded to one per event name per 30 seconds. Counters retain all observed attempts. Readiness and dependency failures remain separate from optional narration outcomes. See the operator guide for collection, measurement limits and safe recovery.
 
 ### Recovery behavior
 

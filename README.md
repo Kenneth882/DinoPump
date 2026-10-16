@@ -18,6 +18,9 @@ Trade, Portfolio and News tabs with a persistent countdown and connection bar.
 See [desktop/360px journey evidence](docs/validation/ticket-19-journey.md) for
 keyboard, reconnect, no-key news and immutable-results validation and its limits.
 
+See [operational probes, metrics and recovery](docs/operations.md) for game and
+worker health/readiness, latency measurement boundaries and credential-safe logs.
+
 ## Local setup
 
 Use Node **24.21.0**, pnpm **10.34.5**, and Docker with Compose. The runtime is pinned in `.nvmrc`, the package manager in `package.json`, and dependencies in `pnpm-lock.yaml`. Next.js and React are installed locally in `apps/web`; TypeScript, ESLint, Prettier, Vitest, and Playwright are workspace development dependencies.

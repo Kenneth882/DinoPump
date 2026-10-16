@@ -10,7 +10,8 @@ export default defineConfig({
     : "test-results",
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
+  // Traces include raw HttpOnly guest cookies in network captures.
+  use: { baseURL: "http://127.0.0.1:3100", trace: "off" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {

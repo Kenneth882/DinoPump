@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { CommentaryWorker } from "./worker.js";
 import { configuredNarrator } from "./openai.js";
+import { createWorkerServer } from "./server.js";
 
 // Core gameplay never imports this entry point or waits for this process.
 const connectionString = process.env.COMMENTARY_DATABASE_URL;
@@ -30,6 +31,18 @@ try {
 }
 const narrator = configuredNarrator(process.env);
 const worker = new CommentaryWorker(pool, narrator);
+pool.on("error", () => {
+  worker.operations.gauge("ready", 0);
+  worker.operations.count("database_failures");
+  worker.operations.log("storage.unavailable");
+});
+const port = Number(process.env.COMMENTARY_HEALTH_PORT ?? 3002);
+if (!Number.isInteger(port) || port < 1 || port > 65535)
+  throw new Error(
+    "COMMENTARY_HEALTH_PORT must be an integer between 1 and 65535",
+  );
+const server = createWorkerServer(worker.operations);
+server.listen(port, "127.0.0.1");
 let stopped = false;
 let wake: (() => void) | undefined;
 for (const signal of ["SIGINT", "SIGTERM"] as const)
@@ -48,9 +61,7 @@ try {
     try {
       if (await worker.processOne()) continue;
     } catch {
-      console.error(
-        JSON.stringify({ event: "commentary.storage_unavailable" }),
-      );
+      /* processOne records bounded, credential-free storage telemetry. */
     }
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 1000);
@@ -61,5 +72,6 @@ try {
     });
   }
 } finally {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
   await pool.end();
 }

@@ -75,7 +75,9 @@ suites separately exercise durable publication/fallback. Time advances only via
 the test-owned clock; settlement and recovery use the real service/database.
 First-visit-to-first-trade timings are asserted below two minutes and attached as
 `first-trade-timing.json`; this automated usability smoke check does not replace
-an observed first-time human usability session. Screenshots and traces stay in
-`test-results/`. See [ticket #19 evidence](../../docs/validation/ticket-19-journey.md)
+an observed first-time human usability session. Screenshots and numeric timing
+attachments stay in `test-results/`. Tracing is disabled because network traces
+capture raw guest cookies; do not persist storage state or transport headers.
+See [ticket #19 evidence](../../docs/validation/ticket-19-journey.md)
 for exact results and limits. Run `pnpm test:e2e tests/e2e/journey.spec.ts` alone,
 or `pnpm test:e2e` for all browser regressions.
