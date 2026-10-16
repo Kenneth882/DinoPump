@@ -88,6 +88,9 @@ this load run does not deliberately restart the service.
 
 ## Deployment-region gate
 
+See the [US East hosting and validation plan](hosting-validation.md) for the
+recruiter-demo budget, topology choices, and remaining validation decisions.
+
 Run the same checkout and commands on an authorized dedicated staging host in
 the intended deployment region, with Docker available. Set a nonsecret label:
 
