@@ -76,11 +76,20 @@ key is supplied to the game process.
   because the test's Socket.IO packet filter excluded numeric acknowledgement
   IDs. The parser now accepts both acknowledged and unacknowledged event packets
   while retaining the original public-payload/privacy assertions.
-- Browser rerun and real-time round results are recorded below when complete.
+- A later browser run exposed a missed keyboard submission after reconnect.
+  The test now asserts button readiness and focus before Enter. The final
+  `pnpm test:e2e` run passed **all 11 Chromium tests in 8 files**, including the
+  corrected portfolio privacy case and full desktop/360px reconnect journey.
+- Final tooling checks after harness refinements passed lint, formatting and
+  tool/workspace typechecking. Documentation links and `git diff --check` passed.
+- `pnpm test:load`: completed the real ten-minute no-key round and integrity
+  checks, but correctly exited **1** for failed acknowledgement latency and
+  incomplete offered peak workload. Its results are recorded below.
 
 ## Performance blocker
 
-The isolated twelve-second smoke run at `2026-10-16T16:09:56Z` offered the
+The [retained smoke report](artifacts/ticket-21-smoke.json) from
+`2026-10-16T16:09:56Z` records the isolated twelve-second run. It offered the
 five-orders/second/player peak for ten seconds. It submitted and acknowledged
 343 attempts; the 160-in-flight safety cap counted **65 skipped attempts**.
 There were 305 filled outcomes and 38 protected-zero outcomes, including retries;
@@ -99,8 +108,47 @@ This is a concrete local capacity blocker: the serialized service falls behind
 the offered 40 attempts/second even without concurrent test/build workloads.
 The measurements distinguish queue/acknowledgement delay from prompt delivery
 after commit. They do not establish which individual service/database operation
-dominates that delay. Service profiling and a measured fix are required before
-claiming peak-capacity acceptance. Targets remain unchanged.
+dominates that delay. Profile the serialized path and validate any correction or deployment sizing
+with the same workload before claiming peak-capacity acceptance. Targets remain
+unchanged.
+
+## Real-time eight-client round
+
+The [retained full report](artifacts/ticket-21-round.json) records
+`2026-10-16T16:18:29Z` through `16:28:44Z`. The unchanged rules-1.1 round was open
+for exactly **600,000ms**; load submission covered **599,801ms** after all eight
+opening snapshots arrived. The complete run including verification took about
+615 seconds. The report identifies source commit `943f621` with working-tree
+changes: the reviewed report-assembly fix separated offered-load duration from
+verification time; gameplay/workload logic was unchanged.
+
+Of **1,344 scheduled offers**, **1,258 were submitted and acknowledged**, and
+**86 were skipped** by the in-flight safety cap. There were 1,038 FILLED and 220
+protected-zero acknowledgements, including original outcomes returned on retries.
+Replay verified **1,135 distinct durable order receipts**. The report preserves
+the actual per-symbol/side/new-or-retry mix; under backlog, retries capture the
+most recently acknowledged request rather than assuming the preceding request
+has completed.
+
+| Gate                           | Actual full-run evidence                                                                                                                                    | Result       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Acknowledgement p95 <300ms     | Server histogram p95 **>5,000ms**, maximum **12,796ms**; separately, client RTT p95 **10,260ms**                                                            | **FAIL**     |
+| Commit-to-client p95 <500ms    | Conservative p95 upper bound **100ms**, maximum **262ms**                                                                                                   | Pass locally |
+| Snapshot <1,000ms              | 16 samples, maximum **88ms**                                                                                                                                | Pass locally |
+| Healthy scheduler lag ≤1,000ms | Nine samples, maximum **385ms**                                                                                                                             | Pass locally |
+| Complete offered workload      | 1,258 completed, 86 skipped                                                                                                                                 | **FAIL**     |
+| Delivery completeness          | **9,160/9,160** validated batch confirmations, no timeouts                                                                                                  | Pass locally |
+| Eight connected clients        | 8 players and 8 sockets through completion                                                                                                                  | Pass locally |
+| Real-time no-key round         | Nine events, eight FINISHED results, 600-second frozen duration                                                                                             | Pass locally |
+| History and results            | All eight streams have **1,145 batches**, cursor **5,460**, and identical SHA-256; replay matches projection, quotes, prices and all final portfolios/ranks | Pass locally |
+| Resources                      | Replay checks each transition; cash/unit conservation, nonnegative balances, covered quotes and immutable fill identities verified                          | Pass locally |
+| Deployment-region run          | No designated staging host/topology exercised                                                                                                               | **UNRUN**    |
+
+The full report includes all eight synthetic final results, nine authored news
+items, cumulative histograms, periodic scrapes and gate outcomes. No provider
+credential, raw cookie, transport header or browser storage is retained. No
+generated narration was present; missing-key worker fallback and browser
+rendering have separate passing suite evidence.
 
 ## Limits and remaining gates
 
@@ -116,3 +164,28 @@ claiming peak-capacity acceptance. Targets remain unchanged.
   performed. Refer to [ticket #19](ticket-19-journey.md) for precise UI checks.
 - Failed, skipped and unrun checks remain incomplete evidence. Keep ticket #21
   and milestone 6 open until the required performance and environment gates pass.
+
+## Standards review
+
+The independent Standards reviewer inspected the committed diff from `7eba873`.
+No documented-standard violations were found. One low-priority duplicated-code
+finding identified repeated workload/RTT report assembly with different duration
+boundaries. The report now assembles those fields once, records offered-load
+duration at the end of submission, and labels elapsed verification time
+separately. The reviewer confirmed the fix; zero findings remain.
+
+## Spec review
+
+The independent Spec reviewer found no actionable implementation defects or
+unrequested gameplay changes. Failed workloads and latency gates remain failures;
+synthetic credentials and no-key operation remain isolated. The later full browser and real-time-round evidence is now recorded above.
+Deployment-region and peak-capacity gates remain open. The identified capacity
+blocker does not establish AC-18 or release readiness.
+
+A final independent Spec check compared both retained JSON artifacts with this
+report after the real-time run and found no factual inconsistencies. The final
+source-metadata refinement computes the working-tree flag rather than hardcoding
+it; it does not change workload or gameplay.
+
+Review totals: **0 remaining Standards findings; 0 Spec findings**. Reviews were
+static; the reviewers did not rerun test suites or interfere with load runs.

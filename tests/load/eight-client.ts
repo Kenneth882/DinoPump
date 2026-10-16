@@ -38,7 +38,9 @@ const report: Record<string, unknown> = {
   sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
     encoding: "utf8",
   }).trim(),
-  sourceIncludesWorkingTreeChanges: true,
+  sourceIncludesWorkingTreeChanges:
+    execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()
+      .length > 0,
   mode: smoke ? "smoke (not acceptance)" : "full real-time round",
   environment: {
     region:
@@ -322,6 +324,7 @@ try {
     tick++;
     await delay(Math.max(0, tick * 200 - (performance.now() - loadStarted)));
   }
+  report.offeredLoadDurationMs = Math.round(performance.now() - loadStarted);
   phase = "drain workload";
   await Promise.all(pending);
   report.metrics = await (
@@ -357,21 +360,6 @@ try {
   await delay(1100); // Include outstanding confirmation timeouts in evidence.
   const metrics = await (await fetch(`${origin}/metrics`)).json();
   report.metrics = metrics;
-  report.timeline = timeline;
-  report.workloadResult = {
-    commandMix,
-    submitted,
-    completed,
-    skipped,
-    outcomes,
-    durationMs: Math.round(performance.now() - loadStarted),
-  };
-  rtt.sort((a, b) => a - b);
-  report.clientRoundTripMs = {
-    count: rtt.length,
-    p95: rtt[Math.ceil(rtt.length * 0.95) - 1],
-    max: rtt.at(-1),
-  };
   const streams = clients.map((client) => ({
     batches: client.batches,
     cursor: client.cursor,
@@ -503,7 +491,7 @@ try {
     completed,
     skipped,
     outcomes,
-    durationMs:
+    elapsedThroughVerificationMs:
       typeof report.loadStartedAt === "string"
         ? Date.now() - Date.parse(report.loadStartedAt)
         : null,
