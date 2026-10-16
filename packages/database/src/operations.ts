@@ -14,6 +14,7 @@ type Counter =
   | "narration_invalid"
   | "narration_timeout"
   | "narration_unavailable"
+  | "narration_lease_losses"
   | "narration_publication_failures"
   | "delivery_timeouts";
 type Duration =

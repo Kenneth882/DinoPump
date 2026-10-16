@@ -245,7 +245,7 @@ it("keeps provider failures separate from database readiness and a running sched
   expect(await attempt).toBe(true);
   expect(worker.operations.snapshot()).toMatchObject({
     gauges: { ready: 1 },
-    counters: { narration_failures: 1 },
+    counters: { narration_failures: 1, narration_lease_losses: 1 },
     histograms: { narration_ms: { count: 1 } },
   });
   expect((await fetch(`${origin}/readyz`)).status).toBe(200);

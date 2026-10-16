@@ -34,8 +34,31 @@ dedicated loopback/tmpfs Compose test project. No external provider credential.
   health metrics, transport measurements and provider-failure observability.
 - `pnpm check`: passed lint, formatting, typechecking, 226 tests and all production
   builds. Typechecking also passed during implementation.
-- Full database, browser and two-axis review results are recorded after the
-  remaining verification completes.
+- `pnpm db:verify`: 131 tests passed across all 12 database suites, including
+  operational, crash/replay and narration regressions. The initial run exposed
+  removal of safe scheduler log timing fields; restoring the fields resolved it
+  and the complete rerun passed.
+- `pnpm test:e2e tests/e2e/commentary-no-key.spec.ts tests/e2e/terminal.spec.ts`:
+  both Chromium cases passed. Real desktop/360px browsers confirmed committed
+  batches, traded, received nine events, reconnected and reached immutable results
+  without a provider key; the terminal regression also passed.
+- Documentation links and duplicated API source sections checked for existence
+  and exact synchronization; `git diff --check` passed.
+- Final focused operational suite: all 5 tests passed after adding the fenced
+  lease-loss counter. Final typechecking, lint and formatting passed. Duplicate
+  generated Next.js declarations appeared after browser runs; the local generated
+  cache was preserved in `/private/tmp` and regenerated before the clean typecheck.
+
+## Review
+
+Separate Standards and Spec agents reviewed the committed diff from `e911486`.
+Both initially reported zero findings. A follow-up counter for expired/superseded
+worker completion leases added one shared documentation consistency finding:
+the narration-duration description incorrectly implied every completion was
+stored. The guide now says timing is recorded after the storage attempt returns,
+including fenced rejections. Standards: one documentation finding fixed, zero
+remaining. Spec: one documentation finding fixed, zero remaining. No gameplay,
+security or scope findings remained.
 
 ## Limits
 

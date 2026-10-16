@@ -96,7 +96,8 @@ export class CommentaryWorker {
       promptVersion: provenance.promptVersion,
       durationMs: Math.round(performance.now() - start),
     };
-    await finishCommentary(this.pool, job, result, this.clock());
+    const saved = await finishCommentary(this.pool, job, result, this.clock());
+    if (!saved) this.operations.count("narration_lease_losses");
     this.operations.observe("narration_ms", result.provenance.durationMs);
     const outcome = result.provenance.validationStatus;
     if (outcome === "accepted") this.operations.count("narration_accepted");
