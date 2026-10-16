@@ -28,6 +28,13 @@ for workload, isolated database setup and measurement boundaries, and the
 [AC-01–18 evidence matrix](docs/validation/ticket-21-acceptance.md) for actual
 results and remaining release gates.
 
+The [staging deployment plan](docs/staging-deployment.md) and
+[Render template](deploy/render.staging.yaml) prepare the approved Supabase +
+Render topology. Hosted validation and spending require approval. The local
+production-ingress rehearsal is `pnpm test:staging-local --smoke`; it preserves
+the existing load gates. Production web configuration comes from the process
+environment; root `.env` loading is development-only.
+
 ## Local setup
 
 Use Node **24.21.0**, pnpm **10.34.5**, and Docker with Compose. The runtime is pinned in `.nvmrc`, the package manager in `package.json`, and dependencies in `pnpm-lock.yaml`. Next.js and React are installed locally in `apps/web`; TypeScript, ESLint, Prettier, Vitest, and Playwright are workspace development dependencies.

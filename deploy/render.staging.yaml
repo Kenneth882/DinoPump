@@ -1,0 +1,82 @@
+# Apply only after approving docs/staging-deployment.md. No auto-deploys.
+# Native Node services: no persistent app disks and no commentary worker.
+services:
+  - type: pserv
+    name: dinopump-staging-game
+    runtime: node
+    region: virginia
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 30
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build:shared && pnpm --filter @dinopump/game-server build
+    startCommand: node apps/game-server/dist/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GAME_SERVER_HOST
+        value: 0.0.0.0
+      - key: WEB_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        sync: false
+      - key: DATABASE_SSL_CA_FILE
+        value: /etc/secrets/supabase-ca.pem
+      - key: DINOPUMP_DEPLOYMENT_ID
+        sync: false
+  - type: web
+    name: dinopump-staging-web
+    runtime: node
+    region: virginia
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    healthCheckPath: /api/market-baseline
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build:shared && pnpm --filter @dinopump/web build
+    startCommand: pnpm --filter @dinopump/web start
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: GAME_SERVER_HOSTPORT
+        fromService:
+          name: dinopump-staging-game
+          type: pserv
+          property: hostport
+  - type: worker
+    name: dinopump-staging-runner
+    runtime: node
+    region: virginia
+    plan: 1c-2g
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build:shared
+    # Operator runs exactly one workload from the private service shell.
+    startCommand: sleep infinity
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: STAGING_AUDIT_DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        sync: false
+      - key: DATABASE_SSL_CA_FILE
+        value: /etc/secrets/supabase-ca.pem
+      - key: DINOPUMP_DEPLOYMENT_ID
+        sync: false
+      - key: DINOPUMP_LOAD_ORIGIN
+        sync: false
+      - key: DINOPUMP_METRICS_HOSTPORT
+        fromService:
+          name: dinopump-staging-game
+          type: pserv
+          property: hostport

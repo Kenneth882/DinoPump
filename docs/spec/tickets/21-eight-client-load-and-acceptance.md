@@ -35,3 +35,15 @@ Blocked by: #19, #20.
 
 - [#19](https://github.com/Kenneth882/DinoPump/issues/19): Verify the complete accessible player journey at 360px
 - [#20](https://github.com/Kenneth882/DinoPump/issues/20): Measure safe operation and surface service health
+
+## October 16 deployment-validation continuation
+
+The user authorized local implementation of the remaining deployment-region
+validation using the approved Supabase + Render plan, including only the minimum
+deployment setup from #22 as a prerequisite. Reuse the eight-client workload and
+all acceptance thresholds. Prepare/test locally, then obtain approval for concrete
+staging resources, costs and teardown before provisioning or deployment. See
+[the staging plan](../../staging-deployment.md) and
+[actual evidence](../../validation/ticket-21-acceptance.md). Keep this ticket open
+while required gates remain unverified. This prerequisite extraction does not
+require closing all of #22 before #21.

@@ -9,3 +9,4 @@ export { LobbyStore, LobbyError, TradingError } from "./lobby.js";
 export { readOpenedRound } from "./opened-round.js";
 export { claimCommentary, finishCommentary } from "./commentary.js";
 export { Operations } from "./operations.js";
+export { databaseConnection } from "./connection.js";

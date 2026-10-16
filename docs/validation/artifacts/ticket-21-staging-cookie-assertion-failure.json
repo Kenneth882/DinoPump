@@ -1,0 +1,56 @@
+{
+  "startedAt": "2026-10-16T23:14:40.348Z",
+  "sourceCommit": "4cef8a79d536fc6f676ac53cee85f379a8f75fbe",
+  "sourceDiffSha256": "374e219b0019ad02fe32f34eeba4f2587e986bec8f6c973b9de901e9e80f396a",
+  "sourceIncludesWorkingTreeChanges": true,
+  "mode": "smoke (not acceptance)",
+  "environment": {
+    "region": "local production rehearsal; no regional evidence",
+    "host": "darwin 27.0.0",
+    "cpu": "Apple M1",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v24.21.0",
+    "topology": "HTTPS web proxy -> private game -> durable PostgreSQL; separate load process",
+    "llmKey": "not supplied; no worker or provider configured",
+    "deployment": {
+      "id": "53b833487051445aadb8184ba63b1530",
+      "purpose": "synthetic-staging",
+      "sourceCommit": "4cef8a79d536fc6f676ac53cee85f379a8f75fbe",
+      "webOrigin": "https://localhost:59843"
+    },
+    "rehearsal": true
+  },
+  "workload": {
+    "players": 8,
+    "peakOrdersPerPlayerPerSecond": 5,
+    "peakSeconds": 12,
+    "subsequentOrdersPerPlayerPerSecond": 5,
+    "mix": "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
+    "clock": "Date.now; no acceleration or changed rules"
+  },
+  "timeline": [],
+  "postgres": "18.6",
+  "failureKind": "assertion: ==",
+  "workloadResult": {
+    "commandMix": {},
+    "expectedOffers": 0,
+    "unoffered": 0,
+    "submitted": 0,
+    "completed": 0,
+    "skipped": 0,
+    "outcomes": {},
+    "elapsedThroughVerificationMs": null
+  },
+  "clientRoundTripMs": {
+    "count": 0
+  },
+  "lastPhase": "connect eight clients",
+  "failures": [
+    "Harness stopped before all integrity checks completed; inspect the last recorded phase"
+  ],
+  "finishedAt": "2026-10-16T23:14:40.495Z",
+  "passed": false,
+  "submitted": 0,
+  "completed": 0
+}

@@ -88,6 +88,9 @@ this load run does not deliberately restart the service.
 
 ## Deployment-region gate
 
+See the [US East hosting and validation plan](hosting-validation.md) for the
+recruiter-demo budget, topology choices, and remaining validation decisions.
+
 Run the same checkout and commands on an authorized dedicated staging host in
 the intended deployment region, with Docker available. Set a nonsecret label:
 
@@ -124,3 +127,20 @@ These nested totals are not additive to the enclosing service spans. Compare
 interval deltas and counts when evaluating growth or batching changes. The
 retained experiment reports and hypothesis results are linked in the acceptance
 matrix.
+
+## Hosted staging adapter
+
+After explicit resource approval and [staging preparation](staging-deployment.md),
+run `pnpm test:load --staging --sustained` from the separate Virginia runner.
+It uses the same eight-client workload and every original threshold. HTTPS
+player traffic goes through Next.js; private metrics and a SELECT-only replay
+login target the dedicated synthetic database. The runner never migrates or
+drops hosted data and requires a fresh deployment identity for each run.
+
+`pnpm test:staging-local --smoke` rehearses the production binaries, TLS ingress,
+secure cookies, private metrics and replay with a local tmpfs database. Omit
+`--smoke` for the full sustained ten-minute rehearsal. This command builds the
+web with a temporary private origin; rebuild for normal local use afterward.
+Neither local production rehearsal nor a region label proves provider placement.
+Retain failed reports and attach redacted actual provider inventory to hosted
+reports before updating deployment acceptance.

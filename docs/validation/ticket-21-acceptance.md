@@ -523,3 +523,156 @@ retained sustained report agrees with the evidence summary.
 Review totals: **0 remaining hard Standards violations; 1 optional duplication
 heuristic; 0 remaining Spec findings**. Deployment-region acceptance remains
 unverified regardless of local results.
+
+## Deployment preparation continuation (October 16, 2026)
+
+Starting commit `4cef8a79d536fc6f676ac53cee85f379a8f75fbe`, same `ticket21`
+branch. User-approved seams: production HTTP/Socket.IO ingress, database
+connection/role setup, and the existing eight-client runner. The untracked
+`scripts/setup-hosting.sh` and ignored account credentials were preserved.
+The minimum #22 prerequisite is in [the staging execution plan](../staging-deployment.md)
+and [Render template](../../deploy/render.staging.yaml). No hosted resources
+were provisioned or deployed by this work, and no acceptance target changed.
+
+The staged adapter calls the same workload/assertions through public HTTPS and
+private operator metrics, and verifies persisted history with a SELECT-only
+login. It requires a new synthetic identity, fresh data, a matching game/source
+identity and secure cookies. Its cleanup closes connections only. The original
+loopback runner retains its isolated-schema cleanup guards.
+
+Actual checks so far:
+
+- TLS/session connection guard: test failed before implementation (missing module),
+  then passed. Hosted connections require an explicit CA and reject SSL URL
+  overrides; Supabase transaction pooling is rejected.
+- Restricted-role integration: initial execution needed local socket permission;
+  the authorized rerun passed. A real game owner starts under the runtime login;
+  audit cannot write, game cannot create tables/change its identity marker, and
+  audit cannot execute commentary functions.
+- First local HTTPS rehearsal failed at the cookie assertion: the new assertion
+  incorrectly expected Lax while the existing contract uses Strict. The assertion
+  was corrected to Strict; product cookie policy did not change. The
+  [failed report](artifacts/ticket-21-staging-cookie-assertion-failure.json) is retained.
+- The [production-ingress smoke](artifacts/ticket-21-staging-smoke.json) passed
+  **480/480** offers, no skipped/unoffered attempts, acknowledgement p95 upper
+  bound **200ms**, delivery p95 upper bound **25ms**, complete private/public
+  deliveries, identical streams and replay/resource integrity. It uses actual
+  production game/Next.js binaries behind a trusted temporary localhost HTTPS
+  terminator with PostgreSQL 18.6 on tmpfs. It is **smoke only**: no nine-event or
+  full-round gate is claimed. It also is not evidence of managed PostgreSQL TLS,
+  Render capacity/placement or Supabase compatibility.
+- `pnpm check` passed: lint, format, typechecking, **227 tests in 13 files**, and
+  production builds. Later source/configuration refinements are being checked
+  separately; final results are recorded below when complete.
+
+| AC / gate         | Additional boundary                                                                               | Current status                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| AC-05/10/18       | Production HTTPS proxy, Secure/HttpOnly/Strict cookie, private operator routes                    | Local smoke passed; hosted ingress unverified                                |
+| AC-08/12/16       | Same eight-client assertions through staged adapter, restricted replay login                      | Local smoke passed; full hosted run unverified                               |
+| AC-09/11/13/18    | Nine events and ten-minute no-key final results on candidate topology                             | Hosted run unverified; prior local sustained evidence retained               |
+| AC-14/15          | Owner lock/recovery and durable hosted storage                                                    | Local suites support behavior; provider restart/ownership/restore unverified |
+| AC-17             | Desktop/360px journey                                                                             | Prior browser evidence retained; continuation results below                  |
+| #22 minimum setup | Render config, separate credentials, verified TLS/session settings, startup/teardown instructions | Prepared locally; provider validation awaits approval                        |
+
+Deployment-region acceptance and #21 remain **OPEN / UNVERIFIED**. A report's
+candidate region description is not provider placement evidence. Attach actual
+redacted service/project inventory and source revisions to any future run. Full
+#22 fresh-checkout/optional-worker/backup-restore and release gates remain separate.
+
+### Continued validation and first sustained rehearsal
+
+The complete database suite passed **134 tests in 13 files**. The complete
+browser suite passed **11 Chromium tests in 8 files**, including desktop and
+360px journeys. Final source typechecking passed after the Render host:port
+reference wiring. Both independent reviews of `4cef8a7...3a19798` reported
+**zero Standards violations/actionable smells and zero Spec findings**.
+
+The [first local production sustained run](artifacts/ticket-21-staging-sustained-local.json)
+**failed**: 23,350 submitted of 23,992 expected offers, 23,207 completed,
+642 skipped, zero unoffered, and 143 rate-limit responses. Final server
+acknowledgement histogram p95 upper bound was **5,000ms** (maximum 9,932ms);
+client RTT p95 was **4,483.6ms**. The complete eight streams matched,
+23,207 private results and 167,184 public confirmations were captured, and
+no public delivery timeout occurred. Snapshot maximum was **248.9ms**;
+all nine scheduler measurements were within **125ms**. Delivery p95 upper
+bound was **25ms**. These passing submeasurements do not rescue the failed load.
+
+This run then stopped at **verify persisted history and projection** with a
+database error before producing an integrity verdict. Replay, conservation and
+final-result comparisons are therefore **unverified in this report**. Its original
+SQLSTATE was not retained; do not treat the timeout explanation as proven.
+Inspection found the staged audit pool inherited the game connection's 5-second
+statement timeout, which the original isolated replay pool does not have. The
+adapter now preserves the original unlimited offline SQL duration; the game
+keeps its 5-second setting and all online thresholds remain identical. Future
+reports retain only a small allowlist of SQLSTATE codes, never SQL/error details.
+The first artifacts' generic topology text says "durable PostgreSQL" even in
+rehearsal mode: those runs actually used **local tmpfs**, not persistent storage.
+The metadata now distinguishes this explicitly; retained artifacts are unchanged.
+
+During the slowdown, sampled mean persistence plus publication was roughly
+30ms/order, over the 25ms budget for 40 orders/second. Other host processes were
+consuming CPU; none were stopped. This observation does not establish causality.
+The [subsequent direct growth control](artifacts/ticket-21-direct-growth-control.json)
+passed **2,400/2,400 offers**, no skips/unoffered/rejected transport attempts,
+acknowledgement p95 upper bound **200ms**, delivery **25ms**, and all applicable
+growth/replay gates. It uses the original direct helper, not the HTTPS topology;
+it cannot isolate transient contention from runtime/role/proxy differences.
+The full staged rerun after audit configuration correction is recorded below.
+
+### Second sustained rehearsal: replay completed, capacity failed
+
+Command: `caffeinate -i pnpm test:staging-local`, on `19a349d`, using the
+production HTTPS topology and the corrected offline audit timeout. The
+[unaltered report](artifacts/ticket-21-staging-sustained-after.json) records a
+complete real-time ten-minute round, but **the run failed**. Of **24,000** expected
+offers, **21,602** were submitted, **21,060** completed, **2,390** skipped and
+**8** unoffered; **542** attempts were rate limited. Acknowledgement p95 exceeded
+the histogram's 5,000ms bucket; its reported upper bound/max was **15,448.3ms**,
+not a precise percentile. Client RTT p95 was **7,530.4ms**.
+
+The audit completed without a database exception: replay matched projection and
+frozen results, resources were conserved/nonnegative/covered, and all eight
+client streams matched. There were **9** scheduled events, **21,060** private
+results and **151,776** public delivery confirmations with no missing deliveries.
+Delivery p95 upper bound was **25ms**, snapshot maximum **197.4ms**, and scheduler
+maximum **143ms**. The environment supplied no LLM key or worker; authored news
+and final results were complete. These are local subgate results, not a capacity
+or deployment-region pass. The first failed report remains unchanged, and the
+original database error's cause remains unproven.
+
+| Gate                                                             | Actual continuation status                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| AC-08/12/16 replay, conservation and consistent clients          | Passed in the second full local production rehearsal                                |
+| AC-09/11/13 complete no-key round, nine events and final results | Passed locally; hosted execution unverified                                         |
+| AC-18 delivery, snapshots and scheduler                          | Passed locally at the measured workload; hosted execution unverified                |
+| AC-18 acknowledgement p95 and complete offered workload          | **Failed in both full local production rehearsals**                                 |
+| AC-14/15 hosted persistence/restart/ownership                    | Unverified; isolated integration evidence remains supporting only                   |
+| #21 deployment-region acceptance                                 | **OPEN / UNVERIFIED**, pending approved hosted execution and passing required gates |
+
+The repeatable local capacity failure is an explicit blocker to acceptance.
+A direct growth control passed, but it does not establish the cause of the full
+production-topology slowdown. No threshold, gameplay rule, capacity tier or
+workload was relaxed. The proposed staging run is validation/diagnosis, not
+release approval; no hosted success is inferred from local integrity results.
+
+Both follow-up reviews of `3a19798...19a349d` reported **zero Standards findings
+and zero Spec findings**. They confirmed the timeout change affects only offline
+read-only audit and that the failed-run evidence remains accurately qualified.
+
+### Final local verification before approval
+
+Final `pnpm check` passed: lint, formatting, all workspace/tools typechecks,
+**227 tests across 13 files**, and all production builds. One sandboxed attempt
+could not bind its localhost HTTP test server (`EPERM`); the authorized local
+socket rerun passed. Two earlier saved reports needed whitespace-only formatting;
+JSON equality confirmed their data did not change. The second sustained artifact
+is byte-identical to the runner output. The database and browser suites above
+remain **134/134** and **11/11** passing; no application behavior changed after
+those checks. All **110** relative Markdown links in changed documents resolved,
+and `git diff --check` passed. Complete/focused requirements were not changed.
+
+The final independent evidence review found **zero actionable Spec findings**.
+No push, provisioning, deployment, paid usage or hosted teardown was performed.
+User approval is the next dependency, exactly as requested; broader #22 setup and
+restore sign-off and #21's required region gates remain incomplete.

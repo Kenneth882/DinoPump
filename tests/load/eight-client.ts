@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync, fork } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { once } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
 import { cpus, platform, release, totalmem } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
@@ -15,12 +14,16 @@ import {
   type LobbySnapshot,
   type OrderSubmit,
 } from "../../packages/contracts/dist/index.js";
+import { readOpenedRound } from "../../packages/database/dist/index.js";
 import {
-  migrate,
-  readOpenedRound,
-} from "../../packages/database/dist/index.js";
-import { isolatedDatabase } from "../helpers/database.js";
+  localLoadEnvironment,
+  stagingLoadEnvironment,
+  type LoadEnvironment,
+} from "../helpers/load-environment.js";
 
+const staging = process.argv.includes("--staging");
+const rehearsal = process.argv.includes("--rehearsal");
+assert(!rehearsal || staging, "--rehearsal requires --staging");
 const smoke = process.argv.includes("--smoke");
 const growth = process.argv.includes("--growth");
 const sustained = process.argv.includes("--sustained") || growth;
@@ -28,7 +31,15 @@ assert(!growth || smoke, "--growth requires --smoke");
 assert(
   process.argv
     .slice(2)
-    .every((arg) => ["--smoke", "--sustained", "--growth"].includes(arg)),
+    .every((arg) =>
+      [
+        "--smoke",
+        "--sustained",
+        "--growth",
+        "--staging",
+        "--rehearsal",
+      ].includes(arg),
+    ),
   "Unknown load option",
 );
 const directory = `test-results/load-${new Date().toISOString().replaceAll(":", "-")}`;
@@ -36,6 +47,7 @@ await mkdir(directory, { recursive: true });
 const startedAt = new Date().toISOString();
 const failures: string[] = [];
 const report: Record<string, unknown> = {
+  deploymentRegionAcceptance: "unverified; run has not completed",
   startedAt,
   sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
     encoding: "utf8",
@@ -79,9 +91,8 @@ const report: Record<string, unknown> = {
   },
 };
 let phase = "database setup";
-const database = await isolatedDatabase();
+let environment: LoadEnvironment | undefined;
 const sockets: Socket[] = [];
-let child: ReturnType<typeof fork> | undefined;
 let expectedOffers = 0;
 let submitted = 0;
 let completed = 0;
@@ -93,38 +104,14 @@ const rtt: number[] = [];
 const timeline: unknown[] = [];
 report.timeline = timeline;
 try {
-  await migrate(database.pool);
+  environment = staging
+    ? await stagingLoadEnvironment(report.sourceCommit as string, rehearsal)
+    : await localLoadEnvironment();
+  const { pool, origin, webOrigin, metricsOrigin } = environment;
+  Object.assign(report.environment as object, environment.metadata);
   report.postgres = (
-    await database.pool.query("SHOW server_version")
+    await pool.query("SHOW server_version")
   ).rows[0].server_version;
-  const schema = (await database.pool.query("SELECT current_schema() AS name"))
-    .rows[0].name as string;
-  child = fork(new URL("../helpers/load-game-server.ts", import.meta.url), [], {
-    execArgv: ["--import", "tsx"],
-    // Do not inherit provider credentials or the development database URL.
-    env: {
-      PATH: process.env.PATH,
-      TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
-      DINOPUMP_TEST_PORT: process.env.DINOPUMP_TEST_PORT,
-      DINOPUMP_LOAD_SCHEMA: schema,
-    },
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
-  });
-  const [address] = await Promise.race([
-    once(child, "message"),
-    once(child, "exit").then(() => {
-      throw new Error("Load service exited during startup");
-    }),
-    delay(15000).then(() => {
-      throw new Error("Load service startup timeout");
-    }),
-  ]);
-  assert(
-    address && typeof address.port === "number",
-    "Service did not supply a port",
-  );
-  const origin = `http://127.0.0.1:${address.port}`;
-  const webOrigin = "http://127.0.0.1:3000";
   async function post(path: string, body: unknown, cookie = "") {
     const response = await fetch(`${origin}${path}`, {
       method: "POST",
@@ -158,7 +145,16 @@ try {
       displayName: `Load Dino ${index + 1}`,
       avatar: "trex",
     });
-    const cookie = session.headers.get("set-cookie")?.split(";")[0];
+    const sessionCookie = session.headers.get("set-cookie");
+    if (staging)
+      assert(
+        sessionCookie &&
+          /;\s*Secure/i.test(sessionCookie) &&
+          /;\s*HttpOnly/i.test(sessionCookie) &&
+          /;\s*SameSite=Strict/i.test(sessionCookie),
+        "Missing secure same-site session flags",
+      );
+    const cookie = sessionCookie?.split(";")[0];
     assert(cookie, "Missing synthetic session");
     if (!code)
       code = (await (await post("/api/rooms", {}, cookie)).json()).code;
@@ -364,7 +360,9 @@ try {
     }
     if (elapsed >= nextScrape) {
       const metrics = await (
-        await fetch(`${origin}/metrics`, { signal: AbortSignal.timeout(10000) })
+        await fetch(`${metricsOrigin}/metrics`, {
+          signal: AbortSignal.timeout(10000),
+        })
       ).json();
       timeline.push({ elapsedMs: Math.round(elapsed), metrics });
       nextScrape += growth ? 10000 : 60000;
@@ -387,7 +385,9 @@ try {
   phase = "drain workload";
   await Promise.all(pending);
   report.metrics = await (
-    await fetch(`${origin}/metrics`, { signal: AbortSignal.timeout(10000) })
+    await fetch(`${metricsOrigin}/metrics`, {
+      signal: AbortSignal.timeout(10000),
+    })
   ).json();
   if (growth) {
     // The final offer tick is near the first event's deadline. Capture final
@@ -432,7 +432,7 @@ try {
     );
   }
   await delay(1100); // Include outstanding confirmation timeouts in evidence.
-  const metrics = await (await fetch(`${origin}/metrics`)).json();
+  const metrics = await (await fetch(`${metricsOrigin}/metrics`)).json();
   report.metrics = metrics;
   const streams = clients.map((client) => ({
     batches: client.batches,
@@ -463,7 +463,7 @@ try {
   }
   phase = "verify persisted history and projection";
   const replay = engineStateSchema.parse(
-    await readOpenedRound(database.pool, initial.roundId),
+    await readOpenedRound(pool, initial.roundId),
   );
   phase = "compare final clients and results";
   const first = finalSnapshots[0]!;
@@ -561,7 +561,9 @@ try {
   };
   report.gates = gates;
   report.deploymentRegionAcceptance =
-    "unverified; this isolated same-host run is supporting evidence only";
+    staging && !rehearsal
+      ? "candidate topology measured; operator must verify provider placement, source inventory and remaining recovery gates"
+      : "unverified; local evidence only";
   for (const [name, passed] of Object.entries(gates)) {
     if (smoke && name === "fullTenMinuteRound") continue;
     if (smoke && !growth && name === "schedulerLagAtMost1000") continue;
@@ -570,6 +572,14 @@ try {
   if (skipped || completed !== submitted || submitted !== expectedOffers)
     failures.push("Incomplete offered workload");
 } catch (error) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    ["57014", "42501", "08006", "08001", "53300", "53200"].includes(error.code)
+  )
+    report.databaseFailureCode = error.code;
   report.failureKind =
     error instanceof assert.AssertionError
       ? `assertion: ${error.operator}`
@@ -623,17 +633,9 @@ try {
     socket.removeAllListeners("disconnect");
     socket.disconnect();
   }
-  if (child && child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGTERM");
-    await Promise.race([once(child, "exit"), delay(5000)]);
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill("SIGKILL");
-      await once(child, "exit");
-    }
-  }
-  await database.close();
+  await environment?.close();
   console.info(
-    `Load evidence: ${directory}/report.json; ${failures.length ? "FAILED" : smoke ? "SMOKE ONLY" : "local gates passed"}`,
+    `Load evidence: ${directory}/report.json; ${failures.length ? "FAILED" : smoke ? "SMOKE ONLY" : staging ? "topology gates passed; inspect evidence boundaries" : "local gates passed"}`,
   );
   if (failures.length) process.exitCode = 1;
 }
