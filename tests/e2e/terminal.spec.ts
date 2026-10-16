@@ -1,3 +1,4 @@
+import { terminalView } from "../helpers/terminal.js";
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { lobbySnapshotSchema } from "../../packages/contracts/dist/index.js";
@@ -74,6 +75,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
       symbol: "FERN" | "BONE" | "AMBR",
     ) {
       const round = await read(page);
+      await terminalView(page, "Market");
       const watchlist = page.getByRole("region", { name: "Asset watchlist" });
       for (const initial of round.openingAssets) {
         const current = round.assets.find((a) => a.symbol === initial.symbol)!;
@@ -114,6 +116,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
             priceCents,
           })),
         );
+      await terminalView(page, "Trade");
       const depth = page.getByRole("region", { name: "Bot quote depth" });
       for (const side of ["bid", "ask"] as const) {
         const expected = round.quotes.filter(
@@ -142,6 +145,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     ).toBeVisible({ timeout: 10_000 });
     const opening = await read(host);
     for (const page of [host, guest]) {
+      await terminalView(page, "Market");
       const watchlist = page.getByRole("region", { name: "Asset watchlist" });
       await expect(watchlist.getByRole("button")).toHaveCount(4);
       await expect(
@@ -154,6 +158,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
       await expect(
         page.getByText("No trades yet.", { exact: true }),
       ).toBeVisible();
+      await terminalView(page, "Trade");
       const depth = page.getByRole("region", { name: "Bot quote depth" });
       for (const quote of opening.quotes.filter((q) => q.symbol === "FERN")) {
         await expect(depth.getByTestId(quote.id)).toContainText(
@@ -195,11 +200,13 @@ test("terminal follows committed prices, depth and events across two browsers (A
       ? "FERN"
       : "BONE";
     for (const page of [host, guest]) {
+      await terminalView(page, "Market");
       await page
         .getByRole("region", { name: "Asset watchlist" })
         .getByRole("button", { name: new RegExp(symbol) })
         .focus();
       await page.keyboard.press("Enter");
+      await terminalView(page, "Trade");
       await expect(
         page.getByRole("combobox", { name: "Asset", exact: true }),
       ).toHaveValue(symbol);
@@ -225,6 +232,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     );
 
     for (const page of [host, guest]) {
+      await terminalView(page, "Market");
       await expect(page.getByTestId("price-point")).toHaveCount(3);
       for (const trade of filled.trades) {
         const row = page.getByTestId(`trade-${trade.sequence}`);
@@ -285,6 +293,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     await guest
       .getByRole("combobox", { name: "Asset", exact: true })
       .selectOption("AMBR");
+    await terminalView(guest, "Market");
     await expect(
       guest.getByRole("heading", { name: "AMBR trade price" }),
     ).toBeVisible();
@@ -294,6 +303,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15_000,
     });
+    await terminalView(guest, "Trade");
     await guest
       .getByRole("combobox", { name: "Asset", exact: true })
       .selectOption(symbol);
@@ -322,6 +332,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15000,
     });
+    await terminalView(guest, "Trade");
     const emptyDepth = guest.getByRole("region", { name: "Bot quote depth" });
     await expect(
       emptyDepth.getByText("Unavailable liquidity. No covered bids."),
@@ -337,6 +348,7 @@ test("terminal follows committed prices, depth and events across two browsers (A
     await expect(guest.getByText("Connected", { exact: true })).toBeVisible({
       timeout: 15000,
     });
+    await terminalView(guest, "Trade");
     await guest
       .getByRole("combobox", { name: "Asset", exact: true })
       .selectOption(symbol);

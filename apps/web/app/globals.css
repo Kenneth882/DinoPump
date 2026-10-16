@@ -253,6 +253,16 @@ button:disabled {
 .trade-ticket form button {
   grid-column: 1 / -1;
 }
+.trade-feedback {
+  margin-block: 1rem;
+  padding: 0.5rem 1rem;
+  border-inline-start: 3px solid #f2cb7a;
+  background: #12221b;
+  overflow-wrap: anywhere;
+}
+.trade-feedback p {
+  margin-block: 0.5rem;
+}
 @media (max-width: 540px) {
   .trade-ticket form {
     grid-template-columns: minmax(0, 1fr);
@@ -267,10 +277,13 @@ main {
   margin-top: 1.5rem;
   font-variant-numeric: tabular-nums;
 }
-.terminal-bar {
+.terminal-navigation {
   position: sticky;
   top: 0;
   z-index: 2;
+  background: #101c16;
+}
+.terminal-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.5rem;
@@ -285,6 +298,55 @@ main {
   gap: 1rem;
   align-items: start;
   margin-block: 1rem;
+}
+.terminal-screen[hidden] {
+  display: none !important;
+}
+.terminal-market,
+.terminal-portfolio,
+.terminal-news {
+  display: contents;
+}
+.terminal-market > .terminal-panel {
+  grid-column: 1;
+  grid-row: 1;
+}
+.terminal-center {
+  grid-column: 2;
+  grid-row: 1;
+}
+.terminal-right {
+  grid-column: 3;
+  grid-row: 1;
+}
+.terminal-portfolio > .portfolio-panel {
+  grid-column: 3;
+  grid-row: 2;
+}
+.terminal-portfolio > .leaderboard {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+.terminal-news > .daily-roar {
+  grid-column: 2;
+  grid-row: 2;
+}
+.terminal-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding-block: 0.75rem;
+}
+.terminal-tabs button {
+  padding: 0.75rem 0.25rem;
+  font-size: 0.85rem;
+  background: #1b2b20;
+  color: #edf6ee;
+  border: 1px solid #8ba48e;
+}
+.terminal-tabs button[aria-selected="true"] {
+  background: #f2cb7a;
+  color: #101c16;
 }
 .terminal-columns > *,
 .terminal-center > *,
@@ -427,6 +489,17 @@ summary {
   }
   .watchlist {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .terminal-screen {
+    display: grid;
+    grid-column: 1;
+    grid-row: auto;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .terminal-columns .terminal-screen > * {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 @media (max-width: 540px) {

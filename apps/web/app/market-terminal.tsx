@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { PortfolioPanel, ProvisionalLeaderboard } from "./portfolio";
 import { DailyRoar } from "./daily-roar";
 import { elapsedRoundTime as elapsed } from "./round-time";
 import { PlayerActivity } from "./player-activity";
-import { TradeTicket } from "./trade-ticket";
+import { TradeFeedback, TradeTicket } from "./trade-ticket";
 import type { LobbySnapshot, OrderSubmit } from "@dinopump/contracts";
 
 type RoundView = NonNullable<LobbySnapshot["round"]>;
+const terminalTabs = ["Market", "Trade", "Portfolio", "News"] as const;
+type TerminalTab = (typeof terminalTabs)[number];
+
 const money = (cents: number) =>
   `D$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -149,14 +152,34 @@ export function MarketTerminal({
   roomCode,
   connection,
   secondsRemaining,
+  result,
+  message,
   ...ticket
 }: Omit<ComponentProps<typeof TradeTicket>, "symbol" | "onSelectSymbol"> & {
+  result: ComponentProps<typeof TradeFeedback>["result"];
+  message: string;
   players: LobbySnapshot["players"];
   playerId: string;
   roomCode: string;
   connection: string;
   secondsRemaining: number;
 }) {
+  const [selectedTab, setSelectedTab] = useState<TerminalTab>("Market");
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1100px)");
+    const update = () => setNarrow(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const panel = (name: TerminalTab) => ({
+    id: `terminal-panel-${name}`,
+    role: narrow ? "tabpanel" : undefined,
+    "aria-labelledby": narrow ? `terminal-tab-${name}` : undefined,
+    hidden: narrow && selectedTab !== name,
+    tabIndex: narrow ? 0 : undefined,
+  });
   const [symbol, setSymbol] = useState<OrderSubmit["symbol"]>("FERN");
   const asset = round.assets.find((a) => a.symbol === symbol)!;
   const opening = round.openingAssets.find((a) => a.symbol === symbol)!;
@@ -186,121 +209,175 @@ export function MarketTerminal({
   return (
     <section className="market-terminal" aria-labelledby="opening-heading">
       <h3 id="opening-heading">Market and your resources</h3>
-      <div className="terminal-bar">
-        <strong>Pangaea Exchange · Room {roomCode}</strong>
-        <span data-testid="round-remaining">
-          Round closes in {secondsRemaining} seconds.
-        </span>
-        <span>
-          {connection} ·{" "}
-          {ticket.enabled ? "Quotes live" : "Quotes stale or unavailable"}
-        </span>
-        <span>Fictional market game. Virtual currency only.</span>
-      </div>
-      <div className="terminal-columns">
-        <section className="terminal-panel" aria-labelledby="watchlist-heading">
-          <h3 id="watchlist-heading">Asset watchlist</h3>
-          <p className="muted">Last trade · change since opening</p>
-          <div className="watchlist">
-            {round.openingAssets.map((initial) => {
-              const current = round.assets.find(
-                (a) => a.symbol === initial.symbol,
-              )!;
-              const change =
-                ((current.lastPriceCents - initial.initialPriceCents) /
-                  initial.initialPriceCents) *
-                100;
-              return (
-                <button
-                  key={initial.symbol}
-                  aria-pressed={symbol === initial.symbol}
-                  onClick={() => setSymbol(initial.symbol)}
-                  disabled={ticket.pending}
-                >
-                  <strong>{initial.symbol}</strong>
-                  <span>{initial.name}</span>
-                  <b>{money(current.lastPriceCents)}</b>
-                  <span className={change < 0 ? "loss" : "gain"}>
-                    {change >= 0 ? "+" : ""}
-                    {change.toFixed(2)}% since opening
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-        <div className="terminal-center">
-          <section className="terminal-panel" aria-label="Selected market">
-            <h3>
-              {opening.name} <span className="symbol">{symbol}</span>
-            </h3>
-            <div className="market-prices">
-              <p>
-                Last trade{" "}
-                <strong data-testid="selected-last">
-                  {money(asset.lastPriceCents)}
-                </strong>
-              </p>
-              <p>
-                Best bid{" "}
-                <strong>
-                  {bids[0]
-                    ? money(bids[0].priceCents)
-                    : "Unavailable liquidity"}
-                </strong>
-              </p>
-              <p>
-                Best ask{" "}
-                <strong>
-                  {asks[0]
-                    ? money(asks[0].priceCents)
-                    : "Unavailable liquidity"}
-                </strong>
-              </p>
-            </div>
-            <p className="muted">
-              Opening {money(opening.initialPriceCents)} · Reference{" "}
-              {money(asset.referencePriceCents)}
-            </p>
-          </section>
-          <PriceChart round={round} symbol={symbol} />
-          <section className="terminal-panel" aria-label="Latest event context">
-            <h3>Latest event</h3>
-            {latest ? (
-              <p>
-                {latest.headline} · {latest.facts}
-              </p>
-            ) : (
-              <p>No market events yet.</p>
-            )}
-          </section>
-          <section className="terminal-panel" aria-labelledby="tape-heading">
-            <h3 id="tape-heading">Recent trade tape</h3>
-            <p className="muted">
-              Latest 30 executed fills across all assets · sequence order,
-              newest first
-            </p>
-            {round.trades.length ? (
-              <ol aria-label="Executed trades" className="trade-tape">
-                {[...round.trades].reverse().map((t) => (
-                  <li key={t.sequence} data-testid={`trade-${t.sequence}`}>
-                    <strong>{t.symbol}</strong> · {t.quantity} units at{" "}
-                    {money(t.priceCents)}
-                    <br />
-                    Executed total: {money(t.totalValueCents)} · Fill #
-                    {t.sequence}
-                    <br />
-                    {playerName(t.buyerId)} buys from {playerName(t.sellerId)}
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p>No trades yet.</p>
-            )}
-          </section>
-          <DailyRoar news={round.news} opensAt={round.opensAt} />
+      <div className="terminal-navigation">
+        <div className="terminal-bar">
+          <strong>Pangaea Exchange · Room {roomCode}</strong>
+          <span data-testid="round-remaining">
+            Round closes in {secondsRemaining} seconds.
+          </span>
+          <span>
+            {connection} ·{" "}
+            {ticket.enabled ? "Quotes live" : "Quotes stale or unavailable"}
+          </span>
+          <span>Fictional market game. Virtual currency only.</span>
         </div>
-        <div className="terminal-right">
+        {narrow && (
+          <div
+            role="tablist"
+            aria-label="Terminal views"
+            className="terminal-tabs"
+          >
+            {terminalTabs.map((name, index) => (
+              <button
+                key={name}
+                id={`terminal-tab-${name}`}
+                role="tab"
+                aria-selected={selectedTab === name}
+                aria-controls={`terminal-panel-${name}`}
+                tabIndex={selectedTab === name ? 0 : -1}
+                onClick={() => setSelectedTab(name)}
+                onKeyDown={(event) => {
+                  const next =
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? terminalTabs.length - 1
+                        : event.key === "ArrowRight"
+                          ? (index + 1) % terminalTabs.length
+                          : event.key === "ArrowLeft"
+                            ? (index + terminalTabs.length - 1) %
+                              terminalTabs.length
+                            : null;
+                  if (next === null) return;
+                  event.preventDefault();
+                  setSelectedTab(terminalTabs[next]!);
+                  document
+                    .getElementById(`terminal-tab-${terminalTabs[next]}`)
+                    ?.focus();
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <TradeFeedback
+        pending={ticket.pending}
+        result={result}
+        message={message}
+      />
+      <div className="terminal-columns">
+        <div {...panel("Market")} className="terminal-screen terminal-market">
+          <section
+            className="terminal-panel"
+            aria-labelledby="watchlist-heading"
+          >
+            <h3 id="watchlist-heading">Asset watchlist</h3>
+            <p className="muted">Last trade · change since opening</p>
+            <div className="watchlist">
+              {round.openingAssets.map((initial) => {
+                const current = round.assets.find(
+                  (a) => a.symbol === initial.symbol,
+                )!;
+                const change =
+                  ((current.lastPriceCents - initial.initialPriceCents) /
+                    initial.initialPriceCents) *
+                  100;
+                return (
+                  <button
+                    key={initial.symbol}
+                    aria-pressed={symbol === initial.symbol}
+                    onClick={() => setSymbol(initial.symbol)}
+                    disabled={ticket.pending}
+                  >
+                    <strong>{initial.symbol}</strong>
+                    <span>{initial.name}</span>
+                    <b>{money(current.lastPriceCents)}</b>
+                    <span className={change < 0 ? "loss" : "gain"}>
+                      {change >= 0 ? "+" : ""}
+                      {change.toFixed(2)}% since opening
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <div className="terminal-center">
+            <section className="terminal-panel" aria-label="Selected market">
+              <h3>
+                {opening.name} <span className="symbol">{symbol}</span>
+              </h3>
+              <div className="market-prices">
+                <p>
+                  Last trade{" "}
+                  <strong data-testid="selected-last">
+                    {money(asset.lastPriceCents)}
+                  </strong>
+                </p>
+                <p>
+                  Best bid{" "}
+                  <strong>
+                    {bids[0]
+                      ? money(bids[0].priceCents)
+                      : "Unavailable liquidity"}
+                  </strong>
+                </p>
+                <p>
+                  Best ask{" "}
+                  <strong>
+                    {asks[0]
+                      ? money(asks[0].priceCents)
+                      : "Unavailable liquidity"}
+                  </strong>
+                </p>
+              </div>
+              <p className="muted">
+                Opening {money(opening.initialPriceCents)} · Reference{" "}
+                {money(asset.referencePriceCents)}
+              </p>
+            </section>
+            <PriceChart round={round} symbol={symbol} />
+            <section
+              className="terminal-panel"
+              aria-label="Latest event context"
+            >
+              <h3>Latest event</h3>
+              {latest ? (
+                <p>
+                  {latest.headline} · {latest.facts}
+                </p>
+              ) : (
+                <p>No market events yet.</p>
+              )}
+            </section>
+            <section className="terminal-panel" aria-labelledby="tape-heading">
+              <h3 id="tape-heading">Recent trade tape</h3>
+              <p className="muted">
+                Latest 30 executed fills across all assets · sequence order,
+                newest first
+              </p>
+              {round.trades.length ? (
+                <ol aria-label="Executed trades" className="trade-tape">
+                  {[...round.trades].reverse().map((t) => (
+                    <li key={t.sequence} data-testid={`trade-${t.sequence}`}>
+                      <strong>{t.symbol}</strong> · {t.quantity} units at{" "}
+                      {money(t.priceCents)}
+                      <br />
+                      Executed total: {money(t.totalValueCents)} · Fill #
+                      {t.sequence}
+                      <br />
+                      {playerName(t.buyerId)} buys from {playerName(t.sellerId)}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>No trades yet.</p>
+              )}
+            </section>
+          </div>
+        </div>
+        <div {...panel("Trade")} className="terminal-screen terminal-right">
           <TradeTicket
             key={symbol}
             round={round}
@@ -349,6 +426,11 @@ export function MarketTerminal({
               ))}
             </div>
           </section>
+        </div>
+        <div
+          {...panel("Portfolio")}
+          className="terminal-screen terminal-portfolio"
+        >
           <PortfolioPanel
             portfolio={round.portfolio}
             total={round.totals.find((t) => t.playerId === playerId)!}
@@ -358,13 +440,16 @@ export function MarketTerminal({
               ) as Record<OrderSubmit["symbol"], number>
             }
           />
+          <ProvisionalLeaderboard
+            totals={round.totals}
+            players={players}
+            playerId={playerId}
+          />
+        </div>
+        <div {...panel("News")} className="terminal-screen terminal-news">
+          <DailyRoar news={round.news} opensAt={round.opensAt} />
         </div>
       </div>
-      <ProvisionalLeaderboard
-        totals={round.totals}
-        players={players}
-        playerId={playerId}
-      />
       <PlayerActivity round={round} players={players} />
     </section>
   );

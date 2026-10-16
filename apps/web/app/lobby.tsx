@@ -882,7 +882,9 @@ export function Lobby() {
                 {activeCode}
               </span>
             </h3>
-            <p role="status">{connection}</p>
+            <p role="status" aria-atomic="true" data-testid="connection-status">
+              {connection}
+            </p>
           </div>
           {snapshot && (
             <ul className="players" aria-label="Lobby players">
@@ -937,7 +939,7 @@ export function Lobby() {
             <p role="status">Waiting for server confirmation…</p>
           )}
           {snapshot?.countdown && (
-            <p data-testid="round-countdown" role="status">
+            <p data-testid="round-countdown">
               Round opens in {secondsUntil(snapshot.countdown.opensAt)} seconds.
               {secondsUntil(snapshot.countdown.opensAt) === 0 &&
                 " Waiting for the server to open the round…"}

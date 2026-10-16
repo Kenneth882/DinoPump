@@ -1,3 +1,4 @@
+import { terminalView } from "../helpers/terminal.js";
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import {
@@ -88,6 +89,7 @@ test("owners see marked portfolios and shared provisional ranks (AC-04/10/11/17)
       [1, 1000000, 0, 0],
     ]);
     for (const page of [host, guest]) {
+      await terminalView(page, "Portfolio");
       const portfolio = page.getByRole("region", {
         name: "Your portfolio",
         exact: true,
@@ -184,6 +186,7 @@ test("owners see marked portfolios and shared provisional ranks (AC-04/10/11/17)
     await expect(own.getByTestId("portfolio-return")).toHaveText("Loss: 1.36%");
     await expect(fern.getByTestId("holding-value")).toHaveText("D$3,963.00");
     // The guest's single buy uses the rebuilt D$40.40 ask, marking both portfolios.
+    await terminalView(guest, "Trade");
     await guest.getByLabel("Whole units").fill("1");
     await guest.getByLabel("Maximum buy price (cents)").fill("4040");
     await guest.getByRole("button", { name: "Submit buy" }).click();
@@ -200,6 +203,7 @@ test("owners see marked portfolios and shared provisional ranks (AC-04/10/11/17)
     });
     await expect(own.getByTestId("portfolio-value")).toHaveText("D$9,941.50");
     await expect(own.getByTestId("portfolio-return")).toHaveText("Loss: 0.59%");
+    await terminalView(guest, "Portfolio");
     const guestPortfolio = guest.getByRole("region", {
       name: "Your portfolio",
       exact: true,

@@ -1,3 +1,4 @@
+import { terminalView } from "../helpers/terminal.js";
 import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
@@ -255,6 +256,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       VOLC: 0,
       BONE: 0,
     });
+    await terminalView(guest, "Trade");
     // A live socket with no authorized freshness evidence must pause trading.
     // Only the correlated resync acknowledgement arrives; the event is lost.
     silence = true;
@@ -450,6 +452,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       fullPage: true,
     });
     for (const page of [host, guest]) {
+      await terminalView(page, "News");
       await expect(
         page.getByRole("heading", { name: "The Daily Roar" }),
       ).toBeVisible();
@@ -459,6 +462,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
         ),
       ).toBeVisible();
     }
+    await writeFile(process.env.DINOPUMP_E2E_CLOCK!, "61000");
     await expect(host.getByTestId("news-item")).toHaveCount(1, {
       timeout: 70_000,
     });
@@ -477,6 +481,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       traded.assets.map((a: { lastPriceCents: number }) => a.lastPriceCents),
     );
     expect(updated.news[0].narrationStatus).toBe("pending");
+    await terminalView(guest, "Trade");
     await expect(
       ticket.getByRole("button", { name: "Submit buy" }),
     ).toBeEnabled();
@@ -625,6 +630,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00", {
       timeout: 15000,
     });
+    await terminalView(guest, "Trade");
     holdOrderDelivery = true;
     deferTradeState = true;
     heldOrderAck = "";
@@ -734,6 +740,7 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
     passHeartbeatWhileSilent = false;
     releaseSnapshotAck();
     await expect(guest.getByTestId("own-cash")).toHaveText("D$10,000.00");
+    await terminalView(guest, "Trade");
     await expect(
       guest.getByRole("button", { name: "Submit buy" }),
     ).toBeEnabled();

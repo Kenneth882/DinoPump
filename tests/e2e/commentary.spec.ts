@@ -1,3 +1,4 @@
+import { terminalView } from "../helpers/terminal.js";
 import { writeFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { expect, test } from "@playwright/test";
@@ -47,6 +48,7 @@ test("authored news stays complete without AI; late narration enriches the same 
     await expect(host!.getByTestId("trade-result")).toContainText(
       "1 units executed",
     );
+    await terminalView(guest!, "News");
     await writeFile(process.env.DINOPUMP_E2E_CLOCK!, "61000");
     for (const page of [host!, guest!]) {
       await expect(page.getByTestId("news-item")).toHaveCount(1);
