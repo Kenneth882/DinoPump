@@ -1915,16 +1915,7 @@
     "receipts": 2160,
     "roundId": "e3e37f77-e6b0-430f-ab28-91b91ab9bf74"
   },
-  "finalResults": [
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null
-  ],
+  "finalResults": [null, null, null, null, null, null, null, null],
   "news": [
     {
       "sourceEventId": "8fd0c97e-b919-4ef1-97a0-3f74d55e0126",

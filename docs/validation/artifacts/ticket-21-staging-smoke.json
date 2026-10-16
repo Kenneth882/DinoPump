@@ -361,16 +361,7 @@
     "receipts": 432,
     "roundId": "8c3cb5c3-9d93-4790-808f-d1e195bb7f0f"
   },
-  "finalResults": [
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null
-  ],
+  "finalResults": [null, null, null, null, null, null, null, null],
   "news": [],
   "percentileUpperBoundsMs": {
     "orderAckP95": 200,

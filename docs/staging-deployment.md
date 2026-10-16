@@ -132,6 +132,12 @@ is separate from this minimum prerequisite.
    it verifies the staging marker and acquires its session advisory lock before
    listening. Record actual PostgreSQL version, TLS verification, role isolation,
    Data API status and session-pooler endpoint mode without credentials.
+   Verify `current_schema()` and `SHOW statement_timeout` through each actual
+   pooler login: the synthetic schema, 5 seconds for game, and 0 for offline
+   audit. Supavisor version/configuration is a hosted compatibility gate; do not
+   assume local PostgreSQL proves startup-parameter forwarding. Current
+   [Supavisor source](https://github.com/supabase/supavisor/blob/main/lib/supavisor/protocol/startup_options.ex)
+   parses schema options, but the deployed provider version must be checked.
 2. Start web after the game's private origin is final. `/api/market-baseline`
    checks web-to-game connectivity; private `/readyz` checks owned authoritative
    state. A passing web health check alone is not database readiness.

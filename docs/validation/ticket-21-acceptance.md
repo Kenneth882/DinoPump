@@ -619,3 +619,60 @@ acknowledgement p95 upper bound **200ms**, delivery **25ms**, and all applicable
 growth/replay gates. It uses the original direct helper, not the HTTPS topology;
 it cannot isolate transient contention from runtime/role/proxy differences.
 The full staged rerun after audit configuration correction is recorded below.
+
+### Second sustained rehearsal: replay completed, capacity failed
+
+Command: `caffeinate -i pnpm test:staging-local`, on `19a349d`, using the
+production HTTPS topology and the corrected offline audit timeout. The
+[unaltered report](artifacts/ticket-21-staging-sustained-after.json) records a
+complete real-time ten-minute round, but **the run failed**. Of **24,000** expected
+offers, **21,602** were submitted, **21,060** completed, **2,390** skipped and
+**8** unoffered; **542** attempts were rate limited. Acknowledgement p95 exceeded
+the histogram's 5,000ms bucket; its reported upper bound/max was **15,448.3ms**,
+not a precise percentile. Client RTT p95 was **7,530.4ms**.
+
+The audit completed without a database exception: replay matched projection and
+frozen results, resources were conserved/nonnegative/covered, and all eight
+client streams matched. There were **9** scheduled events, **21,060** private
+results and **151,776** public delivery confirmations with no missing deliveries.
+Delivery p95 upper bound was **25ms**, snapshot maximum **197.4ms**, and scheduler
+maximum **143ms**. The environment supplied no LLM key or worker; authored news
+and final results were complete. These are local subgate results, not a capacity
+or deployment-region pass. The first failed report remains unchanged, and the
+original database error's cause remains unproven.
+
+| Gate                                                             | Actual continuation status                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| AC-08/12/16 replay, conservation and consistent clients          | Passed in the second full local production rehearsal                                |
+| AC-09/11/13 complete no-key round, nine events and final results | Passed locally; hosted execution unverified                                         |
+| AC-18 delivery, snapshots and scheduler                          | Passed locally at the measured workload; hosted execution unverified                |
+| AC-18 acknowledgement p95 and complete offered workload          | **Failed in both full local production rehearsals**                                 |
+| AC-14/15 hosted persistence/restart/ownership                    | Unverified; isolated integration evidence remains supporting only                   |
+| #21 deployment-region acceptance                                 | **OPEN / UNVERIFIED**, pending approved hosted execution and passing required gates |
+
+The repeatable local capacity failure is an explicit blocker to acceptance.
+A direct growth control passed, but it does not establish the cause of the full
+production-topology slowdown. No threshold, gameplay rule, capacity tier or
+workload was relaxed. The proposed staging run is validation/diagnosis, not
+release approval; no hosted success is inferred from local integrity results.
+
+Both follow-up reviews of `3a19798...19a349d` reported **zero Standards findings
+and zero Spec findings**. They confirmed the timeout change affects only offline
+read-only audit and that the failed-run evidence remains accurately qualified.
+
+### Final local verification before approval
+
+Final `pnpm check` passed: lint, formatting, all workspace/tools typechecks,
+**227 tests across 13 files**, and all production builds. One sandboxed attempt
+could not bind its localhost HTTP test server (`EPERM`); the authorized local
+socket rerun passed. Two earlier saved reports needed whitespace-only formatting;
+JSON equality confirmed their data did not change. The second sustained artifact
+is byte-identical to the runner output. The database and browser suites above
+remain **134/134** and **11/11** passing; no application behavior changed after
+those checks. All **110** relative Markdown links in changed documents resolved,
+and `git diff --check` passed. Complete/focused requirements were not changed.
+
+The final independent evidence review found **zero actionable Spec findings**.
+No push, provisioning, deployment, paid usage or hosted teardown was performed.
+User approval is the next dependency, exactly as requested; broader #22 setup and
+restore sign-off and #21's required region gates remain incomplete.
