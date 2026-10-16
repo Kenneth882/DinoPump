@@ -1,0 +1,244 @@
+{
+  "startedAt": "2026-10-16T16:37:37.232Z",
+  "sourceCommit": "5b73438b864080ce393b1cbeeed8d4b9e0d7c2b4",
+  "sourceIncludesWorkingTreeChanges": true,
+  "mode": "smoke (not acceptance)",
+  "environment": {
+    "region": "local; deployment region unverified",
+    "host": "darwin 27.0.0",
+    "cpu": "Apple M1",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v24.21.0",
+    "topology": "separate load and game processes, same host; loopback PostgreSQL",
+    "llmKey": "not supplied; no worker or provider configured"
+  },
+  "workload": {
+    "players": 8,
+    "peakOrdersPerPlayerPerSecond": 5,
+    "peakSeconds": 10,
+    "subsequentOrdersPerPlayerPerSecond": 0.2,
+    "mix": "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
+    "clock": "Date.now; no acceleration or changed rules"
+  },
+  "timeline": [
+    {
+      "elapsedMs": 0,
+      "metrics": {
+        "counters": {
+          "orders_received": 8
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 179.72874900000016,
+            "max": 31.495750000000044,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postgres": "18.6",
+  "round": {
+    "roundId": "0d84f6d0-d7dc-4111-8b5c-fd7436cc3d8e",
+    "opensAtMs": 1792168663212,
+    "closesAtMs": 1792169263212,
+    "rulesVersion": "1.1"
+  },
+  "loadStartedAt": "2026-10-16T16:37:43.503Z",
+  "offeredLoadDurationMs": 12000,
+  "metrics": {
+    "counters": {
+      "orders_received": 344
+    },
+    "gauges": {
+      "ready": 1,
+      "ownership": 1,
+      "connected_players": 8,
+      "connected_sockets": 8
+    },
+    "histograms": {
+      "snapshot_ms": {
+        "count": 16,
+        "sum": 520.0611210000045,
+        "max": 147.8943330000002,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 11,
+          "50": 14,
+          "100": 15,
+          "200": 16,
+          "300": 16,
+          "500": 16,
+          "1000": 16,
+          "5000": 16
+        }
+      },
+      "commit_to_client_ms": {
+        "count": 2504,
+        "sum": 100753.28206900001,
+        "max": 233.330750000001,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 2289,
+          "100": 2448,
+          "200": 2488,
+          "300": 2504,
+          "500": 2504,
+          "1000": 2504,
+          "5000": 2504
+        }
+      },
+      "order_ack_ms": {
+        "count": 344,
+        "sum": 1851394.296112,
+        "max": 11620.682416000001,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 0,
+          "100": 1,
+          "200": 3,
+          "300": 5,
+          "500": 12,
+          "1000": 35,
+          "5000": 177
+        }
+      }
+    }
+  },
+  "streams": [
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    },
+    {
+      "batches": 313,
+      "cursor": 1506,
+      "sha256": "828ebad7455a581a60968da30e26543a601d0e86e140cf1b0fa40dc76745ceef"
+    }
+  ],
+  "integrity": {
+    "replayMatchesProjectionAndResults": true,
+    "conservedNonnegativeCoveredResources": true,
+    "identicalClientStreams": true,
+    "scheduledEvents": 0,
+    "sequence": 1506,
+    "receipts": 313,
+    "roundId": "0d84f6d0-d7dc-4111-8b5c-fd7436cc3d8e"
+  },
+  "finalResults": [null, null, null, null, null, null, null, null],
+  "news": [],
+  "percentileUpperBoundsMs": {
+    "orderAckP95": 11620.682416000001,
+    "commitToClientP95": 100
+  },
+  "gates": {
+    "orderAckP95Under300": false,
+    "deliveryP95Under500": true,
+    "snapshotUnder1000": true,
+    "schedulerLagAtMost1000": false,
+    "noMissingDeliveries": true,
+    "allAcknowledgementsMeasured": true,
+    "completeWorkload": false,
+    "eightConnected": true,
+    "fullTenMinuteRound": false
+  },
+  "deploymentRegionAcceptance": "unverified; this isolated same-host run is supporting evidence only",
+  "workloadResult": {
+    "commandMix": {
+      "AMBR:buy:new": 68,
+      "AMBR:sell:new": 36,
+      "BONE:buy:new": 35,
+      "BONE:sell:new": 35,
+      "FERN:buy:new": 35,
+      "FERN:sell:new": 35,
+      "VOLC:buy:new": 35,
+      "VOLC:sell:new": 34,
+      "FERN:buy:retry": 5,
+      "BONE:sell:retry": 11,
+      "AMBR:buy:retry": 13,
+      "BONE:buy:retry": 2
+    },
+    "submitted": 344,
+    "completed": 344,
+    "skipped": 64,
+    "outcomes": {
+      "FILLED": 300,
+      "NO_LIQUIDITY_WITHIN_PROTECTION": 44
+    },
+    "elapsedThroughVerificationMs": 23745
+  },
+  "clientRoundTripMs": {
+    "count": 344,
+    "p95": 11341.612082999998,
+    "max": 11621.875709
+  },
+  "lastPhase": "compare final clients and results",
+  "failures": [
+    "Gate failed: orderAckP95Under300",
+    "Gate failed: completeWorkload",
+    "Incomplete offered workload"
+  ],
+  "finishedAt": "2026-10-16T16:38:07.248Z",
+  "passed": false,
+  "submitted": 344,
+  "completed": 344
+}

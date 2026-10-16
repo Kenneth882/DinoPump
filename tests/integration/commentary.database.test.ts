@@ -451,6 +451,8 @@ it("freezes first and preceding-event activity windows and excludes private iden
     ],
   });
   await finishCommentary(database.pool, first!, await accepted.narrate(), now);
+  const previousSequence = (await store.snapshot(host.secret, code)).round!
+    .sequence;
   // At the exact next deadline due effects precede the newly submitted trade.
   now = opening.opensAt + 120000;
   await trade();
@@ -459,9 +461,11 @@ it("freezes first and preceding-event activity windows and excludes private iden
   if (!second!.input.success) throw new Error("Expected approved context");
   expect(second!.input.data.context).toMatchObject({
     windowStartMs: opening.opensAt + 60000,
+    afterSequence: previousSequence,
     assets: [
       {
         symbol: "FERN",
+        lastExecutedPriceCents: 4040,
         activity: {
           fillCount: 0,
           boughtUnits: 0,

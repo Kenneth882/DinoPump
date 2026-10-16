@@ -22,11 +22,13 @@ import {
 import { isolatedDatabase } from "../helpers/database.js";
 
 const smoke = process.argv.includes("--smoke");
-const sustained = process.argv.includes("--sustained");
+const growth = process.argv.includes("--growth");
+const sustained = process.argv.includes("--sustained") || growth;
+assert(!growth || smoke, "--growth requires --smoke");
 assert(
   process.argv
     .slice(2)
-    .every((arg) => ["--smoke", "--sustained"].includes(arg)),
+    .every((arg) => ["--smoke", "--sustained", "--growth"].includes(arg)),
   "Unknown load option",
 );
 const directory = `test-results/load-${new Date().toISOString().replaceAll(":", "-")}`;
@@ -38,10 +40,23 @@ const report: Record<string, unknown> = {
   sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
     encoding: "utf8",
   }).trim(),
+  sourceDiffSha256: createHash("sha256")
+    .update(
+      execFileSync(
+        "git",
+        ["diff", "HEAD", "--", "apps", "packages", "tests", "scripts"],
+        { encoding: "utf8" },
+      ),
+    )
+    .digest("hex"),
   sourceIncludesWorkingTreeChanges:
     execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()
       .length > 0,
-  mode: smoke ? "smoke (not acceptance)" : "full real-time round",
+  mode: growth
+    ? "60-second growth regression (not acceptance)"
+    : smoke
+      ? "smoke (not acceptance)"
+      : "full real-time round",
   environment: {
     region:
       process.env.DINOPUMP_TEST_REGION ?? "local; deployment region unverified",
@@ -57,7 +72,7 @@ const report: Record<string, unknown> = {
   workload: {
     players: 8,
     peakOrdersPerPlayerPerSecond: 5,
-    peakSeconds: sustained ? 600 : 10,
+    peakSeconds: growth ? 60 : sustained ? (smoke ? 12 : 600) : 10,
     subsequentOrdersPerPlayerPerSecond: sustained ? 5 : 0.2,
     mix: "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
     clock: "Date.now; no acceleration or changed rules",
@@ -67,6 +82,7 @@ let phase = "database setup";
 const database = await isolatedDatabase();
 const sockets: Socket[] = [];
 let child: ReturnType<typeof fork> | undefined;
+let expectedOffers = 0;
 let submitted = 0;
 let completed = 0;
 let skipped = 0;
@@ -131,6 +147,10 @@ try {
     batches: number;
     cursor: number | undefined;
     previous?: { order: OrderSubmit; result: unknown };
+    requested: Set<string>;
+    privateResults: Map<string, unknown>;
+    privateDeliveries: number;
+    newsSources: Set<string>;
   }[] = [];
   let code = "";
   for (let index = 0; index < 8; index++) {
@@ -157,6 +177,10 @@ try {
       hash: createHash("sha256"),
       batches: 0,
       cursor: undefined,
+      requested: new Set(),
+      privateResults: new Map(),
+      privateDeliveries: 0,
+      newsSources: new Set(),
     };
     clients.push(client);
     socket.on("room:snapshot", (payload: unknown) => {
@@ -167,6 +191,15 @@ try {
       }
       client.snapshot = parsed.data;
     });
+    socket.on("order:result", (payload: unknown) => {
+      const parsed = orderResultSchema.safeParse(payload);
+      if (!parsed.success || !client.requested.has(parsed.data.requestId)) {
+        failures.push("Invalid or foreign private result");
+        return;
+      }
+      client.privateResults.set(parsed.data.requestId, parsed.data);
+      client.privateDeliveries++;
+    });
     socket.on("market:batch", (payload: unknown, ack?: () => void) => {
       const parsed = marketBatchSchema.safeParse(payload);
       if (!parsed.success) {
@@ -174,12 +207,18 @@ try {
         return;
       }
       const batch = parsed.data;
+      for (const news of batch.news) client.newsSources.add(news.sourceEventId);
       if (
         client.cursor !== undefined &&
         batch.startSequence !== client.cursor + 1
       )
         failures.push("Gap or duplicate in connected client batch stream");
       client.cursor = batch.endSequence;
+      if (client.snapshot?.round?.roundId === batch.roundId) {
+        client.snapshot.round.assets = batch.assets;
+        client.snapshot.round.quotes = batch.quotes;
+        client.snapshot.round.totals = batch.totals;
+      }
       client.hash.update(JSON.stringify(batch));
       client.batches++;
       ack?.();
@@ -225,14 +264,25 @@ try {
     client.cursor = client.snapshot!.round!.sequence;
   const loadStarted = performance.now();
   report.loadStartedAt = new Date().toISOString();
-  const stopAt = smoke ? Date.now() + 12000 : initial.closesAt;
+  const stopAt = smoke
+    ? Date.now() + (growth ? 60000 : 12000)
+    : initial.closesAt;
+  const totalTicks = smoke
+    ? growth
+      ? 300
+      : 60
+    : Math.ceil((stopAt - Date.now()) / 200);
+  expectedOffers =
+    Array.from({ length: totalTicks }, (_, index) => index).filter(
+      (index) => sustained || index < 50 || index % 25 === 0,
+    ).length * clients.length;
   let tick = 0;
   let nextScrape = 0;
   const indexes = clients.map(() => 0);
   phase = "submit workload";
-  while (Date.now() < stopAt) {
+  while (tick < totalTicks && Date.now() < stopAt) {
     const elapsed = performance.now() - loadStarted;
-    const peak = sustained || elapsed < 10000;
+    const peak = sustained || tick < 50;
     if (peak || tick % 25 === 0) {
       for (const [index, client] of clients.entries()) {
         // Open-loop workload: slow acknowledgements do not silently reduce offered load.
@@ -272,6 +322,7 @@ try {
         const commandKind = `${order.symbol}:${order.side}:${slot === 9 && previous ? "retry" : "new"}`;
         commandMix[commandKind] = (commandMix[commandKind] ?? 0) + 1;
         submitted++;
+        client.requested.add(order.requestId);
         const sent = performance.now();
         const task = (async () => {
           try {
@@ -286,6 +337,11 @@ try {
               return;
             }
             const result = orderResultSchema.parse(response);
+            assert.deepEqual(
+              client.privateResults.get(result.requestId),
+              result,
+              "Private result disagrees with acknowledgement",
+            );
             outcomes[result.status] = (outcomes[result.status] ?? 0) + 1;
             if (slot === 9 && previous)
               assert.deepEqual(
@@ -311,13 +367,16 @@ try {
         await fetch(`${origin}/metrics`, { signal: AbortSignal.timeout(10000) })
       ).json();
       timeline.push({ elapsedMs: Math.round(elapsed), metrics });
-      nextScrape += 60000;
+      nextScrape += growth ? 10000 : 60000;
       console.info(
         JSON.stringify({
           elapsedSeconds: Math.floor(elapsed / 1000),
           submitted,
           completed,
           inFlight: pending.size,
+          acknowledgementMaxMs: metrics.histograms.order_ack_ms?.max ?? null,
+          schedulerLagMaxMs: metrics.histograms.scheduler_lag_ms?.max ?? null,
+          deliveryTimeouts: metrics.counters.delivery_timeouts ?? 0,
         }),
       );
     }
@@ -330,6 +389,21 @@ try {
   report.metrics = await (
     await fetch(`${origin}/metrics`, { signal: AbortSignal.timeout(10000) })
   ).json();
+  if (growth) {
+    // The final offer tick is near the first event's deadline. Capture final
+    // snapshots only once every stream has received that event; its original
+    // due-to-commit latency remains independently gated at <=1,000ms.
+    const deadline = Date.now() + 2000;
+    while (
+      !clients.every((client) => client.newsSources.size >= 1) &&
+      Date.now() < deadline
+    )
+      await delay(25);
+    assert(
+      clients.every((client) => client.newsSources.size >= 1),
+      "First scheduled event was not delivered",
+    );
+  }
   if (!smoke) {
     const deadline = Date.now() + 15000;
     while (
@@ -366,6 +440,10 @@ try {
     sha256: client.hash.digest("hex"),
   }));
   report.streams = streams;
+  report.privateDeliveries = clients.reduce(
+    (sum, client) => sum + client.privateDeliveries,
+    0,
+  );
   phase = "compare connected batch streams";
   for (const stream of streams)
     assert.deepEqual(
@@ -373,14 +451,23 @@ try {
       streams[0],
       "Connected clients received different batches",
     );
+  // Online delivery and final snapshots are complete. Offline replay can block
+  // this load process long enough to miss socket heartbeats on large histories.
+  // Close deliberately only after capturing all online acceptance evidence.
+  const finalSnapshots = clients.map((client) =>
+    structuredClone(client.snapshot!),
+  );
+  for (const socket of sockets) {
+    socket.removeAllListeners("disconnect");
+    socket.disconnect();
+  }
   phase = "verify persisted history and projection";
   const replay = engineStateSchema.parse(
     await readOpenedRound(database.pool, initial.roundId),
   );
   phase = "compare final clients and results";
-  const first = clients[0]!.snapshot!;
-  for (const client of clients) {
-    const snapshot = client.snapshot!;
+  const first = finalSnapshots[0]!;
+  for (const snapshot of finalSnapshots) {
     assert.deepEqual(snapshot.round!.assets, first.round!.assets);
     assert.deepEqual(snapshot.round!.quotes, first.round!.quotes);
     assert.deepEqual(snapshot.round!.totals, first.round!.totals);
@@ -421,7 +508,7 @@ try {
     receipts: replay.receipts.length,
     roundId: initial.roundId,
   };
-  report.finalResults = clients.map((client) => client.snapshot!.terminal);
+  report.finalResults = finalSnapshots.map((snapshot) => snapshot.terminal);
   report.news = first.round!.news;
   assert(
     first.round!.news.every((item) => item.narration === undefined),
@@ -444,15 +531,22 @@ try {
       metrics.histograms.snapshot_ms?.count > 0 &&
       metrics.histograms.snapshot_ms.max < 1000,
     schedulerLagAtMost1000:
-      metrics.histograms.scheduler_lag_ms?.count === 9 &&
+      metrics.histograms.scheduler_lag_ms?.count === (growth ? 1 : 9) &&
       metrics.histograms.scheduler_lag_ms.max <= 1000,
     noMissingDeliveries:
       (metrics.counters.delivery_timeouts ?? 0) === 0 &&
       metrics.histograms.commit_to_client_ms?.count ===
         streams.reduce((sum, stream) => sum + stream.batches, 0),
+    allPrivateResultsDelivered:
+      clients.reduce((sum, client) => sum + client.privateDeliveries, 0) ===
+      completed,
     allAcknowledgementsMeasured:
       metrics.histograms.order_ack_ms?.count === submitted,
-    completeWorkload: completed === submitted && skipped === 0 && submitted > 0,
+    completeWorkload:
+      completed === submitted &&
+      skipped === 0 &&
+      submitted === expectedOffers &&
+      submitted > 0,
     eightConnected:
       metrics.gauges.connected_players === 8 &&
       metrics.gauges.connected_sockets === 8,
@@ -468,10 +562,12 @@ try {
   report.gates = gates;
   report.deploymentRegionAcceptance =
     "unverified; this isolated same-host run is supporting evidence only";
-  if (!smoke)
-    for (const [name, passed] of Object.entries(gates))
-      if (!passed) failures.push(`Gate failed: ${name}`);
-  if (skipped || completed !== submitted)
+  for (const [name, passed] of Object.entries(gates)) {
+    if (smoke && name === "fullTenMinuteRound") continue;
+    if (smoke && !growth && name === "schedulerLagAtMost1000") continue;
+    if (!passed) failures.push(`Gate failed: ${name}`);
+  }
+  if (skipped || completed !== submitted || submitted !== expectedOffers)
     failures.push("Incomplete offered workload");
 } catch (error) {
   report.failureKind =
@@ -480,6 +576,15 @@ try {
       : error instanceof Error
         ? error.name
         : "unknown";
+  if (
+    error instanceof assert.AssertionError &&
+    typeof error.actual === "number" &&
+    typeof error.expected === "number"
+  )
+    report.numericAssertion = {
+      actual: error.actual,
+      expected: error.expected,
+    };
   // Never serialize driver/transport errors, cookies, connection URLs or arbitrary payloads.
   failures.push(
     "Harness stopped before all integrity checks completed; inspect the last recorded phase",
@@ -487,6 +592,8 @@ try {
 } finally {
   report.workloadResult = {
     commandMix,
+    expectedOffers,
+    unoffered: Math.max(0, expectedOffers - submitted - skipped),
     submitted,
     completed,
     skipped,

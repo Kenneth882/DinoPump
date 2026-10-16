@@ -1,0 +1,527 @@
+{
+  "startedAt": "2026-10-16T16:48:10.824Z",
+  "sourceCommit": "5b73438b864080ce393b1cbeeed8d4b9e0d7c2b4",
+  "sourceIncludesWorkingTreeChanges": true,
+  "mode": "smoke (not acceptance)",
+  "environment": {
+    "region": "local; deployment region unverified",
+    "host": "darwin 27.0.0",
+    "cpu": "Apple M1",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v24.21.0",
+    "topology": "separate load and game processes, same host; loopback PostgreSQL",
+    "llmKey": "not supplied; no worker or provider configured"
+  },
+  "workload": {
+    "players": 8,
+    "peakOrdersPerPlayerPerSecond": 5,
+    "peakSeconds": 10,
+    "subsequentOrdersPerPlayerPerSecond": 0.2,
+    "mix": "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
+    "clock": "Date.now; no acceleration or changed rules"
+  },
+  "timeline": [
+    {
+      "elapsedMs": 0,
+      "metrics": {
+        "counters": {
+          "orders_received": 8
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "db_read_ms": {
+            "count": 787,
+            "sum": 574.9592160000011,
+            "max": 3.4257910000005722,
+            "buckets": {
+              "1": 596,
+              "5": 787,
+              "10": 787,
+              "25": 787,
+              "50": 787,
+              "100": 787,
+              "200": 787,
+              "300": 787,
+              "500": 787,
+              "1000": 787,
+              "5000": 787
+            }
+          },
+          "db_other_ms": {
+            "count": 236,
+            "sum": 241.44725600000555,
+            "max": 5.627375000000029,
+            "buckets": {
+              "1": 164,
+              "5": 233,
+              "10": 236,
+              "25": 236,
+              "50": 236,
+              "100": 236,
+              "200": 236,
+              "300": 236,
+              "500": 236,
+              "1000": 236,
+              "5000": 236
+            }
+          },
+          "db_write_ms": {
+            "count": 111,
+            "sum": 117.47774799999956,
+            "max": 3.963875000000371,
+            "buckets": {
+              "1": 77,
+              "5": 111,
+              "10": 111,
+              "25": 111,
+              "50": 111,
+              "100": 111,
+              "200": 111,
+              "300": 111,
+              "500": 111,
+              "1000": 111,
+              "5000": 111
+            }
+          },
+          "db_commit_ms": {
+            "count": 143,
+            "sum": 72.9007999999996,
+            "max": 1.4199999999998454,
+            "buckets": {
+              "1": 135,
+              "5": 143,
+              "10": 143,
+              "25": 143,
+              "50": 143,
+              "100": 143,
+              "200": 143,
+              "300": 143,
+              "500": 143,
+              "1000": 143,
+              "5000": 143
+            }
+          },
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 144.17295899999993,
+            "max": 24.21583400000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 8,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "state_read_ms": {
+            "count": 1,
+            "sum": 5.73791700000038,
+            "max": 5.73791700000038,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 1,
+              "25": 1,
+              "50": 1,
+              "100": 1,
+              "200": 1,
+              "300": 1,
+              "500": 1,
+              "1000": 1,
+              "5000": 1
+            }
+          },
+          "order_queue_ms": {
+            "count": 1,
+            "sum": 0.06908299999940937,
+            "max": 0.06908299999940937,
+            "buckets": {
+              "1": 1,
+              "5": 1,
+              "10": 1,
+              "25": 1,
+              "50": 1,
+              "100": 1,
+              "200": 1,
+              "300": 1,
+              "500": 1,
+              "1000": 1,
+              "5000": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postgres": "18.6",
+  "round": {
+    "roundId": "138d1bbe-3cdb-444e-914b-eacae49b7b36",
+    "opensAtMs": 1792169296884,
+    "closesAtMs": 1792169896884,
+    "rulesVersion": "1.1"
+  },
+  "loadStartedAt": "2026-10-16T16:48:17.015Z",
+  "offeredLoadDurationMs": 12001,
+  "metrics": {
+    "counters": {
+      "orders_received": 408
+    },
+    "gauges": {
+      "ready": 1,
+      "ownership": 1,
+      "connected_players": 8,
+      "connected_sockets": 8
+    },
+    "histograms": {
+      "db_read_ms": {
+        "count": 9223,
+        "sum": 4980.556265999996,
+        "max": 7.4291250000023865,
+        "buckets": {
+          "1": 8749,
+          "5": 9216,
+          "10": 9223,
+          "25": 9223,
+          "50": 9223,
+          "100": 9223,
+          "200": 9223,
+          "300": 9223,
+          "500": 9223,
+          "1000": 9223,
+          "5000": 9223
+        }
+      },
+      "db_other_ms": {
+        "count": 1780,
+        "sum": 1405.7131129999868,
+        "max": 15.57945799999925,
+        "buckets": {
+          "1": 1221,
+          "5": 1774,
+          "10": 1779,
+          "25": 1780,
+          "50": 1780,
+          "100": 1780,
+          "200": 1780,
+          "300": 1780,
+          "500": 1780,
+          "1000": 1780,
+          "5000": 1780
+        }
+      },
+      "db_write_ms": {
+        "count": 3723,
+        "sum": 2273.239458999954,
+        "max": 9.73279199999979,
+        "buckets": {
+          "1": 3333,
+          "5": 3718,
+          "10": 3723,
+          "25": 3723,
+          "50": 3723,
+          "100": 3723,
+          "200": 3723,
+          "300": 3723,
+          "500": 3723,
+          "1000": 3723,
+          "5000": 3723
+        }
+      },
+      "db_commit_ms": {
+        "count": 1123,
+        "sum": 430.0848909999906,
+        "max": 6.295290999998542,
+        "buckets": {
+          "1": 1107,
+          "5": 1122,
+          "10": 1123,
+          "25": 1123,
+          "50": 1123,
+          "100": 1123,
+          "200": 1123,
+          "300": 1123,
+          "500": 1123,
+          "1000": 1123,
+          "5000": 1123
+        }
+      },
+      "snapshot_ms": {
+        "count": 16,
+        "sum": 326.54995999999704,
+        "max": 41.81737499999872,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 14,
+          "50": 16,
+          "100": 16,
+          "200": 16,
+          "300": 16,
+          "500": 16,
+          "1000": 16,
+          "5000": 16
+        }
+      },
+      "state_read_ms": {
+        "count": 421,
+        "sum": 525.2742140000455,
+        "max": 5.73791700000038,
+        "buckets": {
+          "1": 127,
+          "5": 420,
+          "10": 421,
+          "25": 421,
+          "50": 421,
+          "100": 421,
+          "200": 421,
+          "300": 421,
+          "500": 421,
+          "1000": 421,
+          "5000": 421
+        }
+      },
+      "order_queue_ms": {
+        "count": 408,
+        "sum": 30002.621131999993,
+        "max": 194.63629199999923,
+        "buckets": {
+          "1": 46,
+          "5": 48,
+          "10": 49,
+          "25": 87,
+          "50": 151,
+          "100": 271,
+          "200": 408,
+          "300": 408,
+          "500": 408,
+          "1000": 408,
+          "5000": 408
+        }
+      },
+      "engine_command_ms": {
+        "count": 368,
+        "sum": 201.59521000000404,
+        "max": 3.4404999999997017,
+        "buckets": {
+          "1": 335,
+          "5": 368,
+          "10": 368,
+          "25": 368,
+          "50": 368,
+          "100": 368,
+          "200": 368,
+          "300": 368,
+          "500": 368,
+          "1000": 368,
+          "5000": 368
+        }
+      },
+      "order_store_ms": {
+        "count": 408,
+        "sum": 5376.165000000002,
+        "max": 46.896332999999686,
+        "buckets": {
+          "1": 0,
+          "5": 28,
+          "10": 40,
+          "25": 401,
+          "50": 408,
+          "100": 408,
+          "200": 408,
+          "300": 408,
+          "500": 408,
+          "1000": 408,
+          "5000": 408
+        }
+      },
+      "order_publication_ms": {
+        "count": 408,
+        "sum": 2741.955835999999,
+        "max": 15.65637499999957,
+        "buckets": {
+          "1": 0,
+          "5": 33,
+          "10": 396,
+          "25": 408,
+          "50": 408,
+          "100": 408,
+          "200": 408,
+          "300": 408,
+          "500": 408,
+          "1000": 408,
+          "5000": 408
+        }
+      },
+      "order_private_delivery_ms": {
+        "count": 408,
+        "sum": 9.398488000005273,
+        "max": 0.23333400000046822,
+        "buckets": {
+          "1": 408,
+          "5": 408,
+          "10": 408,
+          "25": 408,
+          "50": 408,
+          "100": 408,
+          "200": 408,
+          "300": 408,
+          "500": 408,
+          "1000": 408,
+          "5000": 408
+        }
+      },
+      "order_ack_ms": {
+        "count": 408,
+        "sum": 38136.802635999964,
+        "max": 220.7920840000006,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 34,
+          "50": 99,
+          "100": 225,
+          "200": 406,
+          "300": 408,
+          "500": 408,
+          "1000": 408,
+          "5000": 408
+        }
+      },
+      "commit_to_client_ms": {
+        "count": 2944,
+        "sum": 22859.431205000135,
+        "max": 24.636000000000422,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 2705,
+          "25": 2944,
+          "50": 2944,
+          "100": 2944,
+          "200": 2944,
+          "300": 2944,
+          "500": 2944,
+          "1000": 2944,
+          "5000": 2944
+        }
+      }
+    }
+  },
+  "streams": [
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    },
+    {
+      "batches": 368,
+      "cursor": 1763,
+      "sha256": "3bfe9aa4845b34d2357cb26984eacfe430fc49882f9a57bdacc8d1e34533a74f"
+    }
+  ],
+  "privateDeliveries": 408,
+  "integrity": {
+    "replayMatchesProjectionAndResults": true,
+    "conservedNonnegativeCoveredResources": true,
+    "identicalClientStreams": true,
+    "scheduledEvents": 0,
+    "sequence": 1763,
+    "receipts": 368,
+    "roundId": "138d1bbe-3cdb-444e-914b-eacae49b7b36"
+  },
+  "finalResults": [null, null, null, null, null, null, null, null],
+  "news": [],
+  "percentileUpperBoundsMs": {
+    "orderAckP95": 200,
+    "commitToClientP95": 24.636000000000422
+  },
+  "gates": {
+    "orderAckP95Under300": true,
+    "deliveryP95Under500": true,
+    "snapshotUnder1000": true,
+    "schedulerLagAtMost1000": false,
+    "noMissingDeliveries": true,
+    "allPrivateResultsDelivered": true,
+    "allAcknowledgementsMeasured": true,
+    "completeWorkload": true,
+    "eightConnected": true,
+    "fullTenMinuteRound": false
+  },
+  "deploymentRegionAcceptance": "unverified; this isolated same-host run is supporting evidence only",
+  "workloadResult": {
+    "commandMix": {
+      "AMBR:buy:new": 88,
+      "AMBR:sell:new": 40,
+      "BONE:buy:new": 40,
+      "BONE:sell:new": 40,
+      "FERN:buy:new": 40,
+      "FERN:sell:new": 40,
+      "VOLC:buy:new": 40,
+      "VOLC:sell:new": 40,
+      "AMBR:buy:retry": 40
+    },
+    "submitted": 408,
+    "completed": 408,
+    "skipped": 0,
+    "outcomes": {
+      "FILLED": 328,
+      "NO_LIQUIDITY_WITHIN_PROTECTION": 80
+    },
+    "elapsedThroughVerificationMs": 13842
+  },
+  "clientRoundTripMs": {
+    "count": 408,
+    "p95": 173.48883299999943,
+    "max": 222.0882079999992
+  },
+  "lastPhase": "compare final clients and results",
+  "failures": [],
+  "finishedAt": "2026-10-16T16:48:30.857Z",
+  "passed": true,
+  "submitted": 408,
+  "completed": 408
+}

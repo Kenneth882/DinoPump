@@ -9,6 +9,7 @@ import {
   engineStateSchema,
   type EngineState,
   type EngineBatch,
+  type OrderReceipt,
   newsItemSchema,
   orderSubmitSchema,
   orderResultSchema,
@@ -16,6 +17,13 @@ import {
 import { startEngineRound, reduceEngineBatch } from "@dinopump/engine";
 import { newsFromBatch, narrationInput } from "./news.js";
 import { insertRoundBaseline } from "./rounds.js";
+
+/** Live projections omit historical receipts. Immutable orders own durable deduplication;
+ * full replay still returns and verifies every receipt at the public persistence boundary.
+ */
+export function compactEngineState(state: EngineState): EngineState {
+  return { ...state, receipts: [] };
+}
 
 /** Called only inside the owned room transaction. Returns no public payload. */
 export async function persistRoundOpening(
@@ -36,36 +44,50 @@ export async function persistEngineBatch(
   batch: EngineBatch,
 ) {
   const ids = new Map<number, string>();
-  for (const event of batch.events) {
+  const events = batch.events.map((event) => {
     const eventId = randomUUID();
     ids.set(event.sequence, eventId);
-    await client.query(
-      `INSERT INTO game_events (round_id,sequence,event_id,schema_version,type,payload,cause_id,occurred_at_ms)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [
-        event.roundId,
-        event.sequence,
-        eventId,
-        event.schemaVersion,
-        event.type,
-        event.payload,
-        event.causeId,
-        event.occurredAtMs,
-      ],
-    );
-  }
+    return {
+      round_id: event.roundId,
+      sequence: event.sequence,
+      event_id: eventId,
+      schema_version: event.schemaVersion,
+      type: event.type,
+      payload: event.payload,
+      cause_id: event.causeId,
+      occurred_at_ms: event.occurredAtMs,
+    };
+  });
   const view = publicMarketView(
     state,
     batch,
-    await readQuoteUpdatedAtMs(client, state),
+    batch.events.some((event) => event.type === "QuotesRebuilt")
+      ? batch.command.atMs
+      : await readQuoteUpdatedAtMs(client, state),
   );
+  // Explicit dependencies preserve event -> batch -> projection ordering and
+  // every row trigger while persisting the atomic batch in one round trip.
   await client.query(
-    "INSERT INTO round_batches (round_id,end_sequence,batch,public_view) VALUES ($1,$2,$3,$4)",
-    [state.round.roundId, state.sequence, batch, view],
-  );
-  await client.query(
-    "UPDATE round_projections SET sequence=$2,state=$3 WHERE round_id=$1",
-    [state.round.roundId, state.sequence, state],
+    `WITH saved_events AS (
+      INSERT INTO game_events (round_id,sequence,event_id,schema_version,type,payload,cause_id,occurred_at_ms)
+      SELECT round_id,sequence,event_id,schema_version,type,payload,cause_id,occurred_at_ms
+      FROM jsonb_to_recordset($1::jsonb) AS e(round_id uuid,sequence bigint,event_id uuid,
+        schema_version integer,type text,payload jsonb,cause_id text,occurred_at_ms bigint)
+      ORDER BY sequence RETURNING sequence
+    ), saved_batch AS (
+      INSERT INTO round_batches (round_id,end_sequence,batch,public_view)
+      SELECT $2,$3,$4,$5 FROM saved_events WHERE sequence=$3 RETURNING round_id
+    )
+    UPDATE round_projections SET sequence=$3,schema_version=2,state=$6
+      FROM saved_batch WHERE round_projections.round_id=saved_batch.round_id`,
+    [
+      JSON.stringify(events),
+      state.round.roundId,
+      state.sequence,
+      batch,
+      view,
+      compactEngineState(state),
+    ],
   );
   return ids;
 }
@@ -85,12 +107,12 @@ export async function recoverOpenedRound(client: PoolClient, roundId: string) {
   const state = await readRoundHistory(client, roundId, false);
   if (state)
     await client.query(
-      `INSERT INTO round_projections(round_id,sequence,schema_version,state) VALUES ($1,$2,1,$3)
+      `INSERT INTO round_projections(round_id,sequence,schema_version,state) VALUES ($1,$2,2,$3)
        ON CONFLICT (round_id) DO UPDATE SET sequence=EXCLUDED.sequence,schema_version=EXCLUDED.schema_version,state=EXCLUDED.state
        WHERE round_projections.sequence IS DISTINCT FROM EXCLUDED.sequence
          OR round_projections.schema_version IS DISTINCT FROM EXCLUDED.schema_version
          OR round_projections.state IS DISTINCT FROM EXCLUDED.state`,
-      [roundId, state.sequence, state],
+      [roundId, state.sequence, compactEngineState(state)],
     );
   return state;
 }
@@ -114,7 +136,8 @@ async function readRoundHistory(
     (SELECT jsonb_agg(jsonb_build_object('sequence',sequence,'playerId',player_id,'requestId',request_id,'fill',fill) ORDER BY sequence) FROM trades WHERE round_id=r.round_id) AS trades,
     (SELECT jsonb_agg(public_view ORDER BY end_sequence) FROM round_batches WHERE round_id=r.round_id) AS views,
     (SELECT state FROM round_projections WHERE round_id=r.round_id) AS projection,
-    (SELECT sequence FROM round_projections WHERE round_id=r.round_id) AS projection_sequence
+    (SELECT sequence FROM round_projections WHERE round_id=r.round_id) AS projection_sequence,
+    (SELECT schema_version FROM round_projections WHERE round_id=r.round_id) AS projection_version
     FROM rounds r WHERE round_id=$1`,
     [roundId],
   );
@@ -125,7 +148,16 @@ async function readRoundHistory(
     const opened = startEngineRound(round);
     if (!opened.ok) throw new Error("Invalid opening");
     let state = opened.state;
-    const states = new Map<number, EngineState>([[state.sequence, state]]);
+    const anchor = (value: EngineState) => ({
+      sequence: value.sequence,
+      trading: { humans: value.trading.humans },
+    });
+    const states = new Map([[state.sequence, anchor(state)]]);
+    const receipts: OrderReceipt[] = [];
+    const receiptByIdentity = new Map<
+      string,
+      { receipt: OrderReceipt; batch: EngineBatch }
+    >();
     const expectedTrades: unknown[] = [];
     let view = publicMarketView(state, opened.batch);
     const batches = row.batches as EngineBatch[];
@@ -133,10 +165,18 @@ async function readRoundHistory(
       throw new Error("Opening history disagrees");
     for (const [index, batch] of batches.entries()) {
       if (index) {
-        const reduced = reduceEngineBatch(state, batch);
+        const reduced = reduceEngineBatch(compactEngineState(state), batch);
         if (!reduced.ok) throw new Error("Round history failed replay");
         state = reduced.state;
-        states.set(state.sequence, state);
+        states.set(state.sequence, anchor(state));
+        const receipt = reduced.state.receipts[0];
+        if (receipt) {
+          const key = `${receipt.command.playerId}:${receipt.command.requestId}`;
+          if (receiptByIdentity.has(key))
+            throw new Error("Duplicate order in history");
+          receipts.push(receipt);
+          receiptByIdentity.set(key, { receipt, batch });
+        }
         view = publicMarketView(state, batch, view.quoteUpdatedAtMs);
       }
       // Older writers used opensAtMs when settlement followed a batch with no
@@ -166,6 +206,7 @@ async function readRoundHistory(
             });
       }
     }
+    state = { ...state, receipts };
     const replayed = { state };
     if (!isDeepStrictEqual(row.trades ?? [], expectedTrades))
       throw new Error("Trade records disagree with history");
@@ -177,19 +218,12 @@ async function readRoundHistory(
       const anchor = states.get(Number(record.sequence));
       if (!anchor || request.roundId !== roundId)
         throw new Error("Invalid order anchor");
-      const receipt =
-        anchor.receipts.find(
-          (r) =>
-            r.command.playerId === record.playerId &&
-            r.command.requestId === request.requestId,
-        ) ?? null;
+      const original = receiptByIdentity.get(
+        `${record.playerId}:${request.requestId}`,
+      );
+      const receipt = original?.receipt ?? null;
       if (receipt) {
-        const originalBatch = batches.find(
-          (b) =>
-            b.command.type === "SubmitOrder" &&
-            b.command.order.playerId === record.playerId &&
-            b.command.order.requestId === request.requestId,
-        );
+        const originalBatch = original!.batch;
         if (
           !originalBatch ||
           originalBatch.command.atMs !== Number(record.atMs) ||
@@ -284,7 +318,11 @@ async function readRoundHistory(
     await verifyFinalResult(db, replayed.state);
     if (
       verifyProjection &&
-      (!isDeepStrictEqual(engineStateSchema.parse(row.projection), state) ||
+      (![1, 2].includes(row.projection_version) ||
+        !isDeepStrictEqual(
+          engineStateSchema.parse(row.projection),
+          row.projection_version === 2 ? compactEngineState(state) : state,
+        ) ||
         Number(row.projection_sequence) !== state.sequence)
     )
       throw new Error("Round projection disagrees with replay");

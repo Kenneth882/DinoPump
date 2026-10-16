@@ -463,3 +463,94 @@ it("persists exhausted finite bot liquidity without replenishing cash or units",
     },
   });
 });
+
+it("revalidates incremental audiences and keeps snapshots private across presence changes (AC-05/10)", async () => {
+  const { host, players, code, round } = await openRound();
+  const recipients = players.map((p) => ({
+    secret: p.secret,
+    code,
+    roundId: round.roundId,
+    roundSequence: round.sequence,
+    visibilityKey: undefined as string | undefined,
+  }));
+  const initial = await store.publication(recipients);
+  for (const [index, delivery] of initial.entries()) {
+    expect(delivery.snapshot?.round?.recentOrders).toEqual([]);
+    recipients[index]!.visibilityKey = delivery.visibilityKey;
+  }
+  const result = await store.submitOrder(
+    host.secret,
+    code,
+    order(round.roundId),
+  );
+  const live = await store.publication(recipients);
+  for (const delivery of live) {
+    expect(delivery.error).toBeNull();
+    expect(delivery.current?.roundSequence).toBe(result.sequence);
+    expect(delivery.batches.at(-1)?.endSequence).toBe(result.sequence);
+    expect(JSON.stringify(delivery.batches)).not.toContain(result.requestId);
+  }
+  // Presence changes must invalidate incremental delivery even without a lifecycle record.
+  await store.disconnect(players[1]!.player.playerId, code);
+  const changed = await store.publication(recipients);
+  expect(changed[0]!.snapshot?.players[1]?.connected).toBe(false);
+  expect(changed[0]!.snapshot?.round?.recentOrders[0]).toEqual(result);
+  expect(changed[1]!.snapshot?.round?.recentOrders).toEqual([]);
+  expect(changed[1]!.snapshot?.round?.portfolio.holdings.FERN).toBe(0);
+  recipients.forEach((r, i) => {
+    r.visibilityKey = changed[i]!.visibilityKey;
+  });
+  await database.pool.query(
+    "UPDATE guest_sessions SET expires_at_ms=$1 WHERE player_id=$2",
+    [now, host.player.playerId],
+  );
+  await database.pool.query(
+    "DELETE FROM room_members WHERE code=$1 AND player_id=$2",
+    [code, players[1]!.player.playerId],
+  );
+  const denied = await store.publication(recipients);
+  expect(denied.map((d) => d.error)).toEqual(["UNAUTHENTICATED", "FORBIDDEN"]);
+  for (const delivery of denied) {
+    expect(delivery.snapshot).toBeNull();
+    expect(delivery.current).toBeNull();
+    expect(delivery.batches).toEqual([]);
+  }
+});
+
+it("bounds live projection size while retaining old receipts and accepting legacy full projections (AC-07/12/16)", async () => {
+  const { host, code, round } = await openRound();
+  const size = async () =>
+    Number(
+      (
+        await database.pool.query(
+          "SELECT octet_length(state::text) AS bytes FROM round_projections WHERE round_id=$1",
+          [round.roundId],
+        )
+      ).rows[0].bytes,
+    );
+  const initialBytes = await size();
+  const request = order(round.roundId, { quantity: 1 });
+  const original = await store.submitOrder(host.secret, code, request);
+  for (let i = 0; i < 80; i++) {
+    now += 200;
+    await store.submitOrder(
+      host.secret,
+      code,
+      order(round.roundId, { quantity: 1, protectionPriceCents: 100 }),
+    );
+  }
+  expect(await size()).toBeLessThan(initialBytes * 2);
+  const replay = await readOpenedRound(database.pool, round.roundId);
+  expect(replay?.receipts).toHaveLength(81);
+  await store.close();
+  // Existing schema-1 snapshots remain verifiable and are rebuilt without losing identities.
+  await database.pool.query(
+    "UPDATE round_projections SET schema_version=1,state=$2 WHERE round_id=$1",
+    [round.roundId, replay],
+  );
+  expect(await readOpenedRound(database.pool, round.roundId)).toEqual(replay);
+  store = await LobbyStore.open(database.pool, () => now);
+  expect(await store.submitOrder(host.secret, code, request)).toEqual(original);
+  expect(await size()).toBeLessThan(initialBytes * 2);
+  expect(await readOpenedRound(database.pool, round.roundId)).toEqual(replay);
+}, 20000);

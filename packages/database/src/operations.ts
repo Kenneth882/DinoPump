@@ -18,6 +18,16 @@ type Counter =
   | "narration_publication_failures"
   | "delivery_timeouts";
 type Duration =
+  | "order_queue_ms"
+  | "order_store_ms"
+  | "order_publication_ms"
+  | "order_private_delivery_ms"
+  | "engine_command_ms"
+  | "state_read_ms"
+  | "db_read_ms"
+  | "db_write_ms"
+  | "db_commit_ms"
+  | "db_other_ms"
   | "order_ack_ms"
   | "commit_to_client_ms"
   | "snapshot_ms"
@@ -49,7 +59,8 @@ interface Context {
   outcome?: "accepted" | "disabled" | "invalid" | "timeout" | "unavailable";
   rejectionCode?: string;
 }
-const buckets = [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000, 5000];
+// Resolve the strict <300ms gate without treating a coarse 300ms bound as proof.
+const buckets = [1, 5, 10, 25, 50, 100, 200, 250, 299, 300, 500, 1000, 5000];
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 /** Process-local, bounded operational telemetry. No payloads, credentials or error strings. */

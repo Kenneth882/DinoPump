@@ -2,7 +2,7 @@ import {
   persistFinalResult,
   participantResult,
   RoundIntegrityError,
-  verifyFinalResult,
+  verifyRecordedFinalResult,
   persistIntegrityAbort,
 } from "./results.js";
 import { Operations } from "./operations.js";
@@ -17,6 +17,7 @@ import { publishCommentary } from "./commentary.js";
 import { applyDueEvents } from "./scheduled-events.js";
 import { loadBaseline } from "@dinopump/game-content";
 import {
+  compactEngineState,
   persistRoundOpening,
   persistEngineBatch,
   recoverOpenedRound,
@@ -28,6 +29,8 @@ import {
   type TradingErrorCode,
   type LobbySnapshot,
   type MarketBatch,
+  orderResultSchema,
+  roundEndedSchema,
   newsItemSchema,
   gameplayRulesSchema,
   type Baseline,
@@ -222,21 +225,28 @@ export class LobbyStore {
     if (cached) {
       const row = (
         await client.query(
-          "SELECT sequence,state FROM round_projections WHERE round_id=$1",
+          `SELECT p.sequence,p.schema_version,p.state,
+            CASE WHEN r.round_id IS NOT NULL THEN jsonb_build_object(
+              'public_result',r.public_result,'portfolios',r.portfolios,
+              'settlement_sequence',r.settlement_sequence) END AS final_result
+          FROM round_projections p LEFT JOIN round_results r USING(round_id)
+          WHERE p.round_id=$1`,
           [roundId],
         )
       ).rows[0];
       if (
         !row ||
         Number(row.sequence) !== cached.sequence ||
+        row.schema_version !== 2 ||
         !isDeepStrictEqual(row.state, cached)
       ) {
         const recovered = await recoverOpenedRound(client, roundId);
-        if (recovered) this.transactionCache.set(roundId, recovered);
-        return recovered;
+        const compact = recovered ? compactEngineState(recovered) : null;
+        if (compact) this.transactionCache.set(roundId, compact);
+        return compact;
       }
       try {
-        await verifyFinalResult(client, cached);
+        await verifyRecordedFinalResult(client, cached, row.final_result);
       } catch (error) {
         if (error instanceof Error && "code" in error) throw error;
         throw new RoundIntegrityError(
@@ -247,8 +257,9 @@ export class LobbyStore {
       return cached;
     }
     const verified = await recoverOpenedRound(client, roundId);
-    if (verified) this.transactionCache.set(roundId, verified);
-    return verified;
+    const compact = verified ? compactEngineState(verified) : null;
+    if (compact) this.transactionCache.set(roundId, compact);
+    return compact;
   }
   private async assertOwnership() {
     const owned = await this.client.query<{ owned: boolean }>(`SELECT EXISTS(
@@ -335,7 +346,7 @@ export class LobbyStore {
       tokens: tokens >= 1000 ? tokens - 1000 : tokens,
       at: Math.max(now, previous.at),
     });
-    if (tokens < 1000) throw this.transportRejection("RATE_LIMITED");
+    return tokens >= 1000;
   }
   submitOrder(secret: string, code: string, input: unknown) {
     const parsed = orderSubmitSchema.safeParse(input);
@@ -343,36 +354,41 @@ export class LobbyStore {
       return Promise.reject(this.transportRejection("INVALID_REQUEST"));
     const request = parsed.data;
     return this.run(async (client, now) => {
-      const player = await this.member(client, secret, code, now);
+      const player = await this.authenticateAt(client, secret, now);
+      if (!roomCodeSchema.safeParse(code).success)
+        throw new LobbyError("INVALID_REQUEST");
+      // Fresh admission facts share one read; preserve the existing validation
+      // order and rate-budget boundary before inspecting any order history.
       const room = (
         await client.query(
-          "SELECT current_round_id,status FROM rooms WHERE code=$1",
-          [code],
+          `SELECT current_round_id,status,
+            EXISTS(SELECT 1 FROM room_members WHERE code=$1 AND player_id=$3) AS member,
+            (SELECT baseline->'initialState'->'humans' @>
+              jsonb_build_array(jsonb_build_object('playerId',$3::text))
+              FROM rounds WHERE round_id=$2) AS participant,
+            EXISTS(SELECT 1 FROM round_aborts WHERE round_id=$2) AS aborted
+          FROM rooms WHERE code=$1`,
+          [code, request.roundId, player.playerId],
         )
       ).rows[0];
-      const baseline = (
-        await client.query("SELECT baseline FROM rounds WHERE round_id=$1", [
-          request.roundId,
-        ])
-      ).rows[0]?.baseline;
-      if (!baseline && room.current_round_id !== request.roundId)
-        throw new TradingError("ROUND_MISMATCH");
+      if (!room || room.status === "EXPIRED")
+        throw new LobbyError("ROOM_NOT_FOUND");
+      if (!room.member) throw new LobbyError("FORBIDDEN");
       if (
-        !baseline?.initialState.humans.some(
-          (participant: { playerId: string }) =>
-            participant.playerId === player.playerId,
-        )
+        room.participant === null &&
+        room.current_round_id !== request.roundId
       )
-        throw new TradingError("PLAYER_NOT_IN_ROUND");
-      this.consumeOrderToken(player.playerId, now);
+        throw new TradingError("ROUND_MISMATCH");
+      if (!room.participant) throw new TradingError("PLAYER_NOT_IN_ROUND");
+      // Admission denial has not touched market state. Complete these reads
+      // normally so a rate-limit burst cannot evict verified state and force
+      // full-history recovery on the next legitimate command.
+      if (!this.consumeOrderToken(player.playerId, now))
+        return this.transportRejection("RATE_LIMITED");
       // Historical retries remain readable after reset only for verified rounds.
       // The abort belongs to the requested round, even after the room moves on.
-      const aborted = await client.query(
-        "SELECT 1 FROM round_aborts WHERE round_id=$1",
-        [request.roundId],
-      );
       if (
-        aborted.rowCount ||
+        room.aborted ||
         (room.status === "ABORTED" && room.current_round_id === request.roundId)
       )
         throw new TradingError("MARKET_CLOSED");
@@ -388,11 +404,16 @@ export class LobbyStore {
       let receipt = null;
       let batch = null;
       if (state.trading.status === "OPEN" && now < state.round.closesAtMs) {
+        const engineStarted = this.operations.monotonic();
         const result = processEngineCommand(state, {
           type: "SubmitOrder",
           atMs: now,
           order: { ...request, playerId: player.playerId },
         });
+        this.operations.observe(
+          "engine_command_ms",
+          this.operations.monotonic() - engineStarted,
+        );
         if (!result.ok || !result.receipt || !result.batch)
           throw new RoundIntegrityError(
             request.roundId,
@@ -409,7 +430,7 @@ export class LobbyStore {
           ].includes(result.receipt.result.code)
         )
           throw new RoundIntegrityError(request.roundId, "Unsafe settlement");
-        resultState = result.state;
+        resultState = compactEngineState(result.state);
         receipt = result.receipt;
         batch = result.batch;
         await persistEngineBatch(client, resultState, batch);
@@ -446,6 +467,11 @@ export class LobbyStore {
         code,
       ]);
       return outcome;
+    }).then((result) => {
+      // Keep the external rejection contract; storage/ownership/commit errors
+      // still take run's ordinary rollback and cache-invalidation path.
+      if (result instanceof TradingError) throw result;
+      return result;
     });
   }
   createSession(input: unknown) {
@@ -1026,7 +1052,12 @@ export class LobbyStore {
       [roundId],
     );
     if (!room.rowCount) throw new LobbyError("INVALID_ROOM_STATE");
+    const readStarted = this.operations.monotonic();
     const initial = await this.readState(client, roundId);
+    this.operations.observe(
+      "state_read_ms",
+      this.operations.monotonic() - readStarted,
+    );
     if (!initial) throw new Error("Missing active round");
     let state = await applyDueEvents(client, initial, now);
     if (state.trading.status === "OPEN" && now >= state.round.closesAtMs) {
@@ -1112,24 +1143,123 @@ export class LobbyStore {
       code: string;
       roundId?: string | undefined;
       roundSequence?: number | undefined;
+      visibilityKey?: string | undefined;
     }[],
+    forceSnapshot = false,
   ) {
     return this.run(async (client, now) => {
+      // One fresh read for the whole audience; credentials are hashed before SQL.
+      // Each row retains its own membership, receipts and terminal portfolio.
+      const audience = (
+        await client.query(
+          `
+        SELECT a.ordinality, s.player_id, r.status, r.sequence AS room_sequence,
+          r.current_round_id, visibility.id AS visibility_key,
+          m.player_id AS member_id,
+          COALESCE(o.outcomes, '[]'::jsonb) AS outcomes,
+          result.public_result, result.portfolios->s.player_id::text AS portfolio,
+          abort.public_view AS abort
+        FROM unnest($1::text[], $2::text[], $4::text[], $5::text[]) WITH ORDINALITY AS a(secret_hash,code,visibility_key,round_id,ordinality)
+        LEFT JOIN guest_sessions s ON s.secret_hash=a.secret_hash AND s.expires_at_ms>$3
+        LEFT JOIN rooms r ON r.code=a.code
+        LEFT JOIN room_members m ON m.code=r.code AND m.player_id=s.player_id
+        LEFT JOIN LATERAL (SELECT md5(jsonb_agg(jsonb_build_array(player_id,connected_at,ready) ORDER BY join_order)::text) AS id FROM room_members WHERE code=r.code) visibility ON true
+        LEFT JOIN LATERAL (
+          SELECT jsonb_agg(recent.outcome ORDER BY recent.processed_at_ms DESC, recent.committed_sequence DESC, recent.request_id) AS outcomes
+          FROM (SELECT outcome,processed_at_ms,committed_sequence,request_id FROM orders
+            WHERE round_id=r.current_round_id AND player_id=s.player_id
+              AND ($6 OR r.status<>'OPEN' OR a.visibility_key IS DISTINCT FROM visibility.id OR a.round_id IS DISTINCT FROM r.current_round_id::text)
+            ORDER BY processed_at_ms DESC,committed_sequence DESC,request_id LIMIT 20) recent
+        ) o ON true
+        LEFT JOIN round_results result ON result.round_id=r.current_round_id
+        LEFT JOIN round_aborts abort ON abort.round_id=r.current_round_id
+        ORDER BY a.ordinality`,
+          [
+            recipients.map((r) => hashSecret(r.secret)),
+            recipients.map((r) => r.code),
+            now,
+            recipients.map((r) => r.visibilityKey ?? null),
+            recipients.map((r) => r.roundId ?? null),
+            forceSnapshot,
+          ],
+        )
+      ).rows;
       const shared = new Map<string, LobbySnapshot>();
       const updates = new Map<string, MarketBatch[]>();
+      const verified = new Map<string, EngineState>();
       const deliveries: {
         snapshot: LobbySnapshot | null;
+        playerId: string | null;
+        current: {
+          sequence: number;
+          serverTime: number;
+          roundId: string;
+          roundSequence: number;
+          visibilityKey: string;
+        } | null;
+        visibilityKey: string | undefined;
         batches: MarketBatch[];
         error: LobbyErrorCode | null;
       }[] = [];
-      for (const recipient of recipients) {
+      for (const [index, recipient] of recipients.entries()) {
         try {
-          const player = await this.member(
-            client,
-            recipient.secret,
-            recipient.code,
-            now,
-          );
+          const authorized = audience[index]!;
+          if (!authorized.player_id) throw new LobbyError("UNAUTHENTICATED");
+          if (!roomCodeSchema.safeParse(recipient.code).success)
+            throw new LobbyError("INVALID_REQUEST");
+          if (!authorized.status || authorized.status === "EXPIRED")
+            throw new LobbyError("ROOM_NOT_FOUND");
+          if (!authorized.member_id) throw new LobbyError("FORBIDDEN");
+          const player = { playerId: authorized.player_id as string };
+          if (
+            !forceSnapshot &&
+            authorized.status === "OPEN" &&
+            recipient.visibilityKey === authorized.visibility_key &&
+            recipient.roundId !== undefined &&
+            recipient.roundId === authorized.current_round_id &&
+            recipient.roundSequence !== undefined
+          ) {
+            let state = verified.get(recipient.roundId);
+            if (!state) {
+              state =
+                (await this.readState(client, recipient.roundId)) ?? undefined;
+              if (!state) throw new Error("Missing publication state");
+              verified.set(recipient.roundId, state);
+            }
+            if (
+              !state.trading.humans.some((h) => h.playerId === player.playerId)
+            )
+              throw new LobbyError("FORBIDDEN");
+            const key = `${recipient.roundId}:${recipient.roundSequence}`;
+            let batches = updates.get(key);
+            if (!batches) {
+              batches =
+                recipient.roundSequence < state.sequence
+                  ? await readMarketUpdates(
+                      client,
+                      state,
+                      recipient.roundSequence,
+                      now,
+                    )
+                  : [];
+              updates.set(key, batches);
+            }
+            deliveries.push({
+              snapshot: null,
+              playerId: player.playerId,
+              current: {
+                sequence: authorized.room_sequence,
+                serverTime: now,
+                roundId: recipient.roundId,
+                roundSequence: state.sequence,
+                visibilityKey: authorized.visibility_key,
+              },
+              visibilityKey: authorized.visibility_key,
+              batches,
+              error: null,
+            });
+            continue;
+          }
           let snapshot = shared.get(recipient.code);
           if (!snapshot) {
             snapshot = await this.visible(
@@ -1145,18 +1275,20 @@ export class LobbyStore {
               (h) => h.playerId === player.playerId,
             );
             if (!human) throw new LobbyError("FORBIDDEN");
-            const recentOrders = await readRecentOrders(
-              client,
-              snapshot.round.roundId,
-              player.playerId,
+            const recentOrders = authorized.outcomes.map((outcome: unknown) =>
+              orderResultSchema.parse(outcome),
             );
             snapshot = {
               ...snapshot,
-              terminal: await participantResult(
-                client,
-                snapshot.round.roundId,
-                player.playerId,
-              ),
+              terminal: authorized.abort
+                ? roundEndedSchema.parse(authorized.abort)
+                : authorized.public_result
+                  ? roundEndedSchema.parse({
+                      ...authorized.public_result,
+                      playerId: player.playerId,
+                      portfolio: authorized.portfolio,
+                    })
+                  : null,
               round: {
                 ...snapshot.round,
                 recentOrders,
@@ -1189,7 +1321,14 @@ export class LobbyStore {
               updates.set(key, batches);
             }
           }
-          deliveries.push({ snapshot, batches, error: null });
+          deliveries.push({
+            snapshot,
+            playerId: player.playerId,
+            current: null,
+            visibilityKey: authorized.visibility_key,
+            batches,
+            error: null,
+          });
         } catch (error) {
           if (
             !(error instanceof LobbyError) ||
@@ -1198,22 +1337,17 @@ export class LobbyStore {
             )
           )
             throw error;
-          deliveries.push({ snapshot: null, batches: [], error: error.code });
+          deliveries.push({
+            snapshot: null,
+            playerId: null,
+            current: null,
+            visibilityKey: undefined,
+            batches: [],
+            error: error.code,
+          });
         }
       }
       return deliveries;
-    });
-  }
-
-  authorizeOrderRecipient(secret: string, code: string, roundId: string) {
-    return this.run(async (client, now) => {
-      await this.member(client, secret, code, now);
-      const row = (
-        await client.query("SELECT current_round_id FROM rooms WHERE code=$1", [
-          code,
-        ])
-      ).rows[0];
-      return row.current_round_id === roundId;
     });
   }
 
@@ -1286,7 +1420,10 @@ export class LobbyStore {
             committedAt,
           ),
         );
-        this.transactionCache.set(state.round.roundId, state);
+        this.transactionCache.set(
+          state.round.roundId,
+          compactEngineState(state),
+        );
         await client.query(
           "UPDATE rooms SET status='OPEN',current_round_id=$2,sequence=sequence+1,host_transfer_at=NULL,expires_at=NULL WHERE code=$1",
           [code, state.round.roundId],

@@ -145,6 +145,22 @@ export async function verifyFinalResult(
       [state.round.roundId],
     )
   ).rows[0];
+  return verifyRecordedFinalResult(db, state, row);
+}
+
+/** Verify a freshly selected result, including absence during an open round. */
+export async function verifyRecordedFinalResult(
+  db: Pool | PoolClient,
+  state: EngineState,
+  row:
+    | {
+        public_result: unknown;
+        portfolios: unknown;
+        settlement_sequence: string | number;
+      }
+    | null
+    | undefined,
+) {
   if (!state.finalResult) {
     if (row) throw new Error("Unexpected final result");
     return;

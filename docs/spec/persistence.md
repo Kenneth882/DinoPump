@@ -52,6 +52,12 @@ Migration 5 adds immutable `orders` keyed by round/player/request, storing canon
 
 Quote freshness follows the latest committed `QuotesRebuilt` event, including when older batches have no public views. A historical settlement immediately after a batch with a null public view may contain the opening timestamp instead; recovery verifies that exact legacy encoding against the complete replayed public view, allowing only that timestamp discrepancy. It preserves the stored batch and immutable results, derives the correct timestamp for delivery, and still rejects every other disagreement with history.
 
+### Bounded live projections and publication (ticket #21)
+
+Live engine projections use storage schema version 2 and omit historical receipts; immutable orders and batches retain every original identity and outcome. The owned service checks durable idempotency before executing a new command. Full recovery verifies every batch, receipt, fill, public view and final result and reconstructs the complete receipt history. Version-1 projections remain readable and are rebuilt from verified history into version 2. Every owned read still compares the replaceable projection with committed cached state; rollback, ownership loss and database failure invalidate the cache. This storage version does not change frozen gameplay rules.
+
+Recovery retains only the ledger anchors needed to verify original outcomes, instead of copying accumulated receipts into every intermediate state. Public persistence reads still return the full verified history. No receipt is discarded from durable storage or excluded from integrity verification.
+
 ### Immutable closing storage (ticket #11 stage)
 
 Migration 6 adds immutable `round_results`, keyed by round and linked to its settlement event sequence. Frozen public marks/ranks/display names/timeline and all private final portfolios commit with the settlement batch, projection, lifecycle transitions, and room visibility. Replay verifies result arithmetic and private portfolios against history; delivery selects only the authenticated owner's portfolio. Results cannot be updated or deleted and remain recorded after lobby reset.

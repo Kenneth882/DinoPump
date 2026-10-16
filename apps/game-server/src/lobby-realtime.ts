@@ -33,6 +33,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       playerId: string;
       sequence: number;
       heartbeatAt?: number;
+      visibilityKey?: string | undefined;
       roundId?: string | undefined;
       roundSequence?: number | undefined;
       terminalRoundId?: string | undefined;
@@ -67,14 +68,19 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
       await options.store.disconnect(member.playerId, member.code);
     }
   }
-  async function publish() {
+  async function publish(forceSnapshot = false) {
     const recipients = [...members];
+    const authorized = new Map<
+      Socket,
+      { playerId: string; roundId: string | undefined }
+    >();
     const deliveries = await options.store.publication(
       recipients.map(([, member]) => member),
+      forceSnapshot,
     );
     for (const [index, [socket, member]] of recipients.entries()) {
       const delivery = deliveries[index]!;
-      if (delivery.error || !delivery.snapshot) {
+      if (delivery.error || (!delivery.snapshot && !delivery.current)) {
         socket.emit(
           "command:error",
           safeError(new LobbyError(delivery.error ?? "SERVICE_UNAVAILABLE")),
@@ -101,13 +107,25 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
           });
         for (const news of batch.news) socket.emit("news:update", news);
       }
-      if (snapshot.serverTime - (member.heartbeatAt ?? 0) >= 1000) {
+      member.visibilityKey = delivery.visibilityKey;
+      const serverTime = snapshot?.serverTime ?? delivery.current!.serverTime;
+      const roundId = snapshot?.round?.roundId ?? delivery.current?.roundId;
+      const roundSequence =
+        snapshot?.round?.sequence ?? delivery.current?.roundSequence;
+      if (serverTime - (member.heartbeatAt ?? 0) >= 1000) {
         socket.emit("room:heartbeat", {
-          serverTime: snapshot.serverTime,
-          roundId: snapshot.round?.roundId ?? null,
-          sequence: snapshot.round?.sequence ?? 0,
+          serverTime,
+          roundId: roundId ?? null,
+          sequence: roundSequence ?? 0,
         });
-        member.heartbeatAt = snapshot.serverTime;
+        member.heartbeatAt = serverTime;
+      }
+      authorized.set(socket, { playerId: delivery.playerId!, roundId });
+      member.roundId = roundId;
+      member.roundSequence = roundSequence;
+      if (!snapshot) {
+        member.sequence = delivery.current!.sequence;
+        continue;
       }
       if (
         snapshot.terminal &&
@@ -135,29 +153,25 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         member.sequence = snapshot.sequence;
       }
     }
+    return authorized;
   }
-  async function deliverOrder(
+  function deliverOrder(
     playerId: string,
     code: string,
     result: OrderResult,
+    authorized: Map<Socket, { playerId: string; roundId: string | undefined }>,
   ) {
-    for (const [socket, member] of members) {
-      if (member.playerId !== playerId || member.code !== code) continue;
-      try {
-        if (
-          !(await options.store.authorizeOrderRecipient(
-            member.secret,
-            member.code,
-            result.roundId,
-          ))
-        )
-          continue;
+    // Reuse this publication's fresh authorization, with no await between the
+    // public batch and owner-only result. Never retain it for a later command.
+    for (const [socket, audience] of authorized) {
+      const member = members.get(socket);
+      if (
+        socket.connected &&
+        member?.code === code &&
+        audience.playerId === playerId &&
+        audience.roundId === result.roundId
+      )
         socket.emit("order:result", result);
-      } catch (error) {
-        socket.emit("command:error", safeError(error));
-        socket.disconnect(true);
-        await remove(socket);
-      }
     }
   }
   const execute = <T>(work: () => Promise<T>) =>
@@ -263,15 +277,31 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
         }
       };
       void serial(async () => {
+        operations.observe(
+          "order_queue_ms",
+          operations.monotonic() - receivedAt,
+        );
         const member = members.get(socket);
         if (!member) throw new LobbyError("FORBIDDEN");
+        let started = operations.monotonic();
         const result = await options.store.submitOrder(
           member.secret,
           member.code,
           payload,
         );
-        await publish();
-        await deliverOrder(member.playerId, member.code, result);
+        operations.observe("order_store_ms", operations.monotonic() - started);
+        started = operations.monotonic();
+        const authorized = await publish();
+        operations.observe(
+          "order_publication_ms",
+          operations.monotonic() - started,
+        );
+        started = operations.monotonic();
+        deliverOrder(member.playerId, member.code, result, authorized);
+        operations.observe(
+          "order_private_delivery_ms",
+          operations.monotonic() - started,
+        );
         if (result.status === "REJECTED") operations.count("orders_rejected");
         acknowledge(result);
       }).catch((error: unknown) => {
@@ -418,7 +448,7 @@ export function attachLobby(server: HttpServer, options: LobbyOptions) {
             operations.count("narration_publication_failures");
             operations.log("commentary.publication_failed");
           }
-          if (publishedCount) await publish();
+          if (publishedCount) await publish(true);
         }),
       )
       .catch(() => {

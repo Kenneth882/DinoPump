@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { LobbyStore } from "../../packages/database/dist/index.js";
+import { LobbyStore, Operations } from "../../packages/database/dist/index.js";
 import { createGameServer } from "../../apps/game-server/src/server.js";
 
 // Dedicated synthetic schema, real wall clock, no .env or provider configuration.
@@ -16,7 +16,37 @@ const pool = new Pool({
   connectionString: target.href,
   options: `-c search_path=${schema}`,
 });
-const store = await LobbyStore.open(pool);
+// Numeric query classes only: never retain SQL, parameters or credentials.
+const operations = new Operations();
+pool.on("connect", (client) => {
+  const query = client.query;
+  client.query = new Proxy(query, {
+    apply(target, receiver, args: unknown[]) {
+      const sql = typeof args[0] === "string" ? args[0].trimStart() : "";
+      const name = /^SELECT/i.test(sql)
+        ? "db_read_ms"
+        : /^(INSERT|UPDATE|DELETE|WITH saved_events)/i.test(sql)
+          ? "db_write_ms"
+          : sql === "COMMIT"
+            ? "db_commit_ms"
+            : "db_other_ms";
+      const start = performance.now();
+      const result = Reflect.apply(target, receiver, args);
+      if (result instanceof Promise)
+        return result.finally(() =>
+          operations.observe(name, performance.now() - start),
+        );
+      return result;
+    },
+  });
+});
+const store = await LobbyStore.open(
+  pool,
+  undefined,
+  undefined,
+  undefined,
+  operations,
+);
 const server = createGameServer(undefined, {
   store,
   webOrigin: "http://127.0.0.1:3000",
