@@ -1,0 +1,132 @@
+{
+  "method": "Node --cpu-prof, 1000us default sampling, isolated 60-second growth run; temporary flags removed",
+  "scope": "game-server child only; profiling overhead means this is diagnostic evidence, not acceptance",
+  "durationMs": 70966.417,
+  "topSelfSamples": [
+    {
+      "function": "(idle)",
+      "file": "",
+      "sampledMs": 56119.76
+    },
+    {
+      "function": "writev",
+      "file": "",
+      "sampledMs": 938.52
+    },
+    {
+      "function": "(program)",
+      "file": "",
+      "sampledMs": 805.1
+    },
+    {
+      "function": "parseRow",
+      "file": "result.js",
+      "sampledMs": 784.67
+    },
+    {
+      "function": "",
+      "file": "",
+      "sampledMs": 665.53
+    },
+    {
+      "function": "publish",
+      "file": "lobby-realtime.ts",
+      "sampledMs": 605.95
+    },
+    {
+      "function": "inst._zod.run",
+      "file": "schemas.js",
+      "sampledMs": 551.32
+    },
+    {
+      "function": "inst._zod.parse",
+      "file": "schemas.js",
+      "sampledMs": 506.95
+    },
+    {
+      "function": "now",
+      "file": "",
+      "sampledMs": 460.26
+    },
+    {
+      "function": "",
+      "file": "operations.js",
+      "sampledMs": 445.3
+    },
+    {
+      "function": "encodeAsString",
+      "file": "index.js",
+      "sampledMs": 421.96
+    },
+    {
+      "function": "runMicrotasks",
+      "file": "",
+      "sampledMs": 417.57
+    },
+    {
+      "function": "addFields",
+      "file": "result.js",
+      "sampledMs": 386.75
+    },
+    {
+      "function": "prepareObject",
+      "file": "utils.js",
+      "sampledMs": 305.46
+    },
+    {
+      "function": "",
+      "file": "lobby.js",
+      "sampledMs": 296.16
+    },
+    {
+      "function": "(garbage collector)",
+      "file": "",
+      "sampledMs": 277.51
+    },
+    {
+      "function": "writeBuffer",
+      "file": "",
+      "sampledMs": 264.5
+    },
+    {
+      "function": "monotonic",
+      "file": "operations.js",
+      "sampledMs": 249.25
+    },
+    {
+      "function": "runChecks",
+      "file": "schemas.js",
+      "sampledMs": 235.21
+    },
+    {
+      "function": "keyCheck",
+      "file": "comparisons",
+      "sampledMs": 201.86
+    },
+    {
+      "function": "hasBinary",
+      "file": "is-binary.js",
+      "sampledMs": 175.79
+    },
+    {
+      "function": "",
+      "file": "validators",
+      "sampledMs": 164.21
+    },
+    {
+      "function": "objEquiv",
+      "file": "comparisons",
+      "sampledMs": 155.25
+    },
+    {
+      "function": "utf8Slice",
+      "file": "",
+      "sampledMs": 154.91
+    },
+    {
+      "function": "inst._zod.check",
+      "file": "checks.js",
+      "sampledMs": 138.67
+    }
+  ]
+}

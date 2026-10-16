@@ -341,7 +341,10 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
         .map((q: { priceCents: number }) => q.priceCents),
     );
     await guest.getByLabel("Maximum buy price (cents)").fill(String(bestAsk));
-    await ticket.getByRole("button", { name: "Submit buy" }).focus();
+    const submitBuy = ticket.getByRole("button", { name: "Submit buy" });
+    await expect(submitBuy).toBeEnabled();
+    await submitBuy.focus();
+    await expect(submitBuy).toBeFocused();
     await guest.keyboard.press("Enter");
     await expect(guest.getByTestId("trade-result")).toContainText(
       "Partially filled",
@@ -688,13 +691,21 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
       .click();
     // Opening evidence overtakes a COUNTDOWN capture. Its old reply cannot
     // synchronize the new market merely because its socket remains connected.
+    await expect(guest.getByTestId("round-countdown")).toBeVisible();
     silence = true;
     heldSnapshotAck = "";
+    // Force the capture now, while COUNTDOWN is active, rather than waiting
+    // for heartbeat staleness to race the real five-second countdown.
+    injectPacket(latestBatchPacket);
     await expect(
       guest.getByText("Synchronizing…", { exact: true }),
     ).toBeVisible({ timeout: 8000 });
     await expect.poll(() => heldSnapshotAck).not.toBe("");
     const countdownAck = heldSnapshotAck;
+    expect(
+      JSON.parse(countdownAck.slice(countdownAck.indexOf("[")))[0].snapshot
+        .status,
+    ).toBe("COUNTDOWN");
     const beforeOpeningAttempts = resyncs.length;
     passHeartbeatWhileSilent = true;
     await writeFile(process.env.DINOPUMP_E2E_CLOCK, "1810000");

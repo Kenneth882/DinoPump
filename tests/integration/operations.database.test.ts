@@ -13,11 +13,24 @@ let store: LobbyStore;
 let server: ReturnType<typeof createGameServer>;
 let origin: string;
 let now: number;
+let historyReads: number;
 const sockets: Socket[] = [];
 const webOrigin = "http://127.0.0.1:3000";
 beforeEach(async () => {
   now = 1_800_000_000_000;
   database = await isolatedDatabase();
+  historyReads = 0;
+  database.pool.on("connect", (client) => {
+    client.query = new Proxy(client.query, {
+      apply(target, receiver, args: unknown[]) {
+        // Count complete recovery reads at the real database boundary. No
+        // parameters or credentials are retained, and queries execute unchanged.
+        if (typeof args[0] === "string" && args[0].includes("AS initialized"))
+          historyReads++;
+        return Reflect.apply(target, receiver, args);
+      },
+    });
+  });
   await migrate(database.pool);
   store = await LobbyStore.open(database.pool, () => now);
   server = createGameServer(undefined, {
@@ -139,6 +152,7 @@ it("measures receipt through acknowledgement, client-confirmed commit delivery a
   const before = await first
     .timeout(2000)
     .emitWithAck("room:resync", { roundId, lastSequence: result.sequence });
+  const readsBeforeDenial = historyReads;
   const excess = await sockets[2]!
     .timeout(2000)
     .emitWithAck("order:submit", { ...order, requestId: randomUUID() });
@@ -158,6 +172,9 @@ it("measures receipt through acknowledgement, client-confirmed commit delivery a
     .timeout(2000)
     .emitWithAck("room:resync", { roundId, lastSequence: result.sequence });
   expect(after.snapshot.round.sequence).toBe(before.snapshot.round.sequence);
+  // A pre-engine admission denial must not force accumulated immutable history
+  // through replay before the next valid snapshot or command (ticket #21).
+  expect(historyReads).toBe(readsBeforeDenial);
   expect(await metrics()).toMatchObject({
     counters: {
       orders_received: 61,
@@ -174,6 +191,17 @@ it("measures receipt through acknowledgement, client-confirmed commit delivery a
   );
   expect(rejected).toHaveLength(1);
   expect(JSON.stringify(log.mock.calls)).toContain(order.requestId);
+  // Retaining verified state must still detect a damaged mutable projection.
+  // This also proves that the recovery-read probe above observes actual replay.
+  await database.pool.query(
+    "UPDATE round_projections SET state=jsonb_set(state,'{sequence}','0') WHERE round_id=$1",
+    [roundId],
+  );
+  const repaired = await first
+    .timeout(2000)
+    .emitWithAck("room:resync", { roundId, lastSequence: result.sequence });
+  expect(repaired.snapshot.round).toEqual(after.snapshot.round);
+  expect(historyReads).toBeGreaterThan(readsBeforeDenial);
 });
 
 it("keeps process health separate from ownership readiness and fails writes closed (AC-05/14/15)", async () => {

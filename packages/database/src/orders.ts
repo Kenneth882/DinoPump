@@ -12,7 +12,9 @@ import {
 
 /** Build the immutable private outcome from deterministic facts at its commit. */
 export function orderOutcome(
-  state: EngineState,
+  state: Pick<EngineState, "sequence"> & {
+    trading: Pick<EngineState["trading"], "humans">;
+  },
   request: OrderSubmit,
   playerId: string,
   receipt: OrderReceipt | null,

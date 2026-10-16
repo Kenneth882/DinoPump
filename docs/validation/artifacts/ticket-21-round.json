@@ -1,0 +1,3121 @@
+{
+  "startedAt": "2026-10-16T16:18:29.581Z",
+  "sourceCommit": "943f621a91ea64624bd0dfa35ce34616a3cf58a1",
+  "sourceIncludesWorkingTreeChanges": true,
+  "mode": "full real-time round",
+  "environment": {
+    "region": "local; deployment region unverified",
+    "host": "darwin 27.0.0",
+    "cpu": "Apple M1",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v24.21.0",
+    "topology": "separate load and game processes, same host; loopback PostgreSQL",
+    "llmKey": "not supplied; no worker or provider configured"
+  },
+  "workload": {
+    "players": 8,
+    "peakOrdersPerPlayerPerSecond": 5,
+    "peakSeconds": 10,
+    "subsequentOrdersPerPlayerPerSecond": 0.2,
+    "mix": "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
+    "clock": "Date.now; no acceleration or changed rules"
+  },
+  "timeline": [
+    {
+      "elapsedMs": 0,
+      "metrics": {
+        "counters": {
+          "orders_received": 8
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 60001,
+      "metrics": {
+        "counters": {
+          "orders_received": 402
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 2872,
+            "sum": 135741.79477899993,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 2040,
+              "100": 2808,
+              "200": 2864,
+              "300": 2872,
+              "500": 2872,
+              "1000": 2872,
+              "5000": 2872
+            }
+          },
+          "order_ack_ms": {
+            "count": 394,
+            "sum": 2107955.405486999,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 3,
+              "200": 14,
+              "300": 26,
+              "500": 54,
+              "1000": 90,
+              "5000": 191
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 1,
+            "sum": 298,
+            "max": 298,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 1,
+              "500": 1,
+              "1000": 1,
+              "5000": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 120000,
+      "metrics": {
+        "counters": {
+          "orders_received": 498
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 3560,
+            "sum": 164163.061424,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 2680,
+              "100": 3496,
+              "200": 3552,
+              "300": 3560,
+              "500": 3560,
+              "1000": 3560,
+              "5000": 3560
+            }
+          },
+          "order_ack_ms": {
+            "count": 490,
+            "sum": 2142106.549821998,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 8,
+              "200": 34,
+              "300": 64,
+              "500": 128,
+              "1000": 186,
+              "5000": 287
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 2,
+            "sum": 543,
+            "max": 298,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 2,
+              "1000": 2,
+              "5000": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 180001,
+      "metrics": {
+        "counters": {
+          "orders_received": 594
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 4272,
+            "sum": 194847.29131999958,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 3352,
+              "100": 4208,
+              "200": 4264,
+              "300": 4272,
+              "500": 4272,
+              "1000": 4272,
+              "5000": 4272
+            }
+          },
+          "order_ack_ms": {
+            "count": 586,
+            "sum": 2177614.0431599985,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 12,
+              "200": 57,
+              "300": 101,
+              "500": 200,
+              "1000": 282,
+              "5000": 383
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 3,
+            "sum": 855,
+            "max": 312,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 3,
+              "1000": 3,
+              "5000": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 240000,
+      "metrics": {
+        "counters": {
+          "orders_received": 690
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 4968,
+            "sum": 229057.32456399992,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 3821,
+              "100": 4904,
+              "200": 4960,
+              "300": 4968,
+              "500": 4968,
+              "1000": 4968,
+              "5000": 4968
+            }
+          },
+          "order_ack_ms": {
+            "count": 682,
+            "sum": 2217694.8961579977,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 15,
+              "200": 75,
+              "300": 132,
+              "500": 262,
+              "1000": 378,
+              "5000": 479
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 4,
+            "sum": 1240,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 4,
+              "1000": 4,
+              "5000": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 300000,
+      "metrics": {
+        "counters": {
+          "orders_received": 786
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 5656,
+            "sum": 265990.17328600003,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 4106,
+              "100": 5576,
+              "200": 5648,
+              "300": 5656,
+              "500": 5656,
+              "1000": 5656,
+              "5000": 5656
+            }
+          },
+          "order_ack_ms": {
+            "count": 778,
+            "sum": 2261868.858871998,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 17,
+              "200": 89,
+              "300": 159,
+              "500": 314,
+              "1000": 473,
+              "5000": 575
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 5,
+            "sum": 1603,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 5,
+              "1000": 5,
+              "5000": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 360001,
+      "metrics": {
+        "counters": {
+          "orders_received": 882
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 6368,
+            "sum": 308172.12971699744,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 4203,
+              "100": 6264,
+              "200": 6360,
+              "300": 6368,
+              "500": 6368,
+              "1000": 6368,
+              "5000": 6368
+            }
+          },
+          "order_ack_ms": {
+            "count": 874,
+            "sum": 2309103.008744996,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 18,
+              "200": 102,
+              "300": 184,
+              "500": 364,
+              "1000": 568,
+              "5000": 671
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 6,
+            "sum": 1917,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 6,
+              "1000": 6,
+              "5000": 6
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 420199,
+      "metrics": {
+        "counters": {
+          "orders_received": 978
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 7072,
+            "sum": 349078.7114009991,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 4235,
+              "100": 6952,
+              "200": 7064,
+              "300": 7072,
+              "500": 7072,
+              "1000": 7072,
+              "5000": 7072
+            }
+          },
+          "order_ack_ms": {
+            "count": 971,
+            "sum": 2355993.233738998,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 18,
+              "200": 116,
+              "300": 210,
+              "500": 416,
+              "1000": 665,
+              "5000": 768
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 7,
+            "sum": 2221,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 7,
+              "1000": 7,
+              "5000": 7
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 480200,
+      "metrics": {
+        "counters": {
+          "orders_received": 1074
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 7776,
+            "sum": 393276.8312989996,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 4243,
+              "100": 7632,
+              "200": 7768,
+              "300": 7776,
+              "500": 7776,
+              "1000": 7776,
+              "5000": 7776
+            }
+          },
+          "order_ack_ms": {
+            "count": 1067,
+            "sum": 2407903.5604529968,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 19,
+              "200": 128,
+              "300": 233,
+              "500": 462,
+              "1000": 754,
+              "5000": 864
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 8,
+            "sum": 2558,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedMs": 540001,
+      "metrics": {
+        "counters": {
+          "orders_received": 1170
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 195.5405009999999,
+            "max": 34.62583299999994,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 6,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          },
+          "commit_to_client_ms": {
+            "count": 8472,
+            "sum": 434772.4194630008,
+            "max": 261.59691699999894,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 4243,
+              "100": 8328,
+              "200": 8464,
+              "300": 8472,
+              "500": 8472,
+              "1000": 8472,
+              "5000": 8472
+            }
+          },
+          "order_ack_ms": {
+            "count": 1162,
+            "sum": 2457608.6815409977,
+            "max": 12795.947416000003,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 20,
+              "200": 141,
+              "300": 258,
+              "500": 508,
+              "1000": 847,
+              "5000": 959
+            }
+          },
+          "scheduler_lag_ms": {
+            "count": 9,
+            "sum": 2890,
+            "max": 385,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 0,
+              "50": 0,
+              "100": 0,
+              "200": 0,
+              "300": 2,
+              "500": 9,
+              "1000": 9,
+              "5000": 9
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postgres": "18.6",
+  "round": {
+    "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+    "opensAtMs": 1792167515735,
+    "closesAtMs": 1792168115735,
+    "rulesVersion": "1.1"
+  },
+  "loadStartedAt": "2026-10-16T16:18:36.121Z",
+  "offeredLoadDurationMs": 599801,
+  "metrics": {
+    "counters": {
+      "orders_received": 1258
+    },
+    "gauges": {
+      "ready": 1,
+      "ownership": 1,
+      "connected_players": 8,
+      "connected_sockets": 8
+    },
+    "histograms": {
+      "snapshot_ms": {
+        "count": 16,
+        "sum": 560.3605829998746,
+        "max": 88.2635419999715,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 6,
+          "50": 14,
+          "100": 16,
+          "200": 16,
+          "300": 16,
+          "500": 16,
+          "1000": 16,
+          "5000": 16
+        }
+      },
+      "commit_to_client_ms": {
+        "count": 9160,
+        "sum": 476256.6104889976,
+        "max": 261.59691699999894,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 4243,
+          "100": 9016,
+          "200": 9152,
+          "300": 9160,
+          "500": 9160,
+          "1000": 9160,
+          "5000": 9160
+        }
+      },
+      "order_ack_ms": {
+        "count": 1258,
+        "sum": 2508018.339500995,
+        "max": 12795.947416000003,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 0,
+          "100": 21,
+          "200": 152,
+          "300": 282,
+          "500": 554,
+          "1000": 942,
+          "5000": 1055
+        }
+      },
+      "scheduler_lag_ms": {
+        "count": 9,
+        "sum": 2890,
+        "max": 385,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 0,
+          "100": 0,
+          "200": 0,
+          "300": 2,
+          "500": 9,
+          "1000": 9,
+          "5000": 9
+        }
+      }
+    }
+  },
+  "streams": [
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    },
+    {
+      "batches": 1145,
+      "cursor": 5460,
+      "sha256": "30b4835ff8ab28b2a833d6ded7735ca00d0e2498c2cdd5f5aceee4a73084be86"
+    }
+  ],
+  "integrity": {
+    "replayMatchesProjectionAndResults": true,
+    "conservedNonnegativeCoveredResources": true,
+    "identicalClientStreams": true,
+    "scheduledEvents": 9,
+    "sequence": 5460,
+    "receipts": 1135,
+    "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd"
+  },
+  "finalResults": [
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+      "portfolio": {
+        "cashCents": 992589,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+      "portfolio": {
+        "cashCents": 993159,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+      "portfolio": {
+        "cashCents": 992294,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+      "portfolio": {
+        "cashCents": 992071,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+      "portfolio": {
+        "cashCents": 992625,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+      "portfolio": {
+        "cashCents": 993204,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+      "portfolio": {
+        "cashCents": 992421,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    },
+    {
+      "status": "FINISHED",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "closesAtMs": 1792168115735,
+      "marks": {
+        "AMBR": 9033,
+        "BONE": 2731,
+        "FERN": 4589,
+        "VOLC": 9909
+      },
+      "settlementSequence": 5460,
+      "rankings": [
+        {
+          "playerId": "427b2e38-09ca-4e9e-9155-2df35a0e74a5",
+          "joinOrder": 5,
+          "rank": 1,
+          "portfolioValueCents": 993204,
+          "profitCents": -6796,
+          "returnPercent": -0.6796,
+          "displayName": "Load Dino 6"
+        },
+        {
+          "playerId": "d19e0278-f677-4c00-bef3-f3dfba342a4c",
+          "joinOrder": 1,
+          "rank": 2,
+          "portfolioValueCents": 993159,
+          "profitCents": -6841,
+          "returnPercent": -0.6840999999999999,
+          "displayName": "Load Dino 2"
+        },
+        {
+          "playerId": "df6a9464-4302-4086-b6b5-37f1f1b43344",
+          "joinOrder": 4,
+          "rank": 3,
+          "portfolioValueCents": 992625,
+          "profitCents": -7375,
+          "returnPercent": -0.7374999999999999,
+          "displayName": "Load Dino 5"
+        },
+        {
+          "playerId": "9d603b2f-a3a9-4690-a58a-a7bed955dc82",
+          "joinOrder": 0,
+          "rank": 4,
+          "portfolioValueCents": 992589,
+          "profitCents": -7411,
+          "returnPercent": -0.7411,
+          "displayName": "Load Dino 1"
+        },
+        {
+          "playerId": "1f2e48fd-7984-42e8-9add-05df314eb4c6",
+          "joinOrder": 6,
+          "rank": 5,
+          "portfolioValueCents": 992421,
+          "profitCents": -7579,
+          "returnPercent": -0.7579,
+          "displayName": "Load Dino 7"
+        },
+        {
+          "playerId": "aa5653eb-fd58-4e1d-b3b5-5058cb72f959",
+          "joinOrder": 2,
+          "rank": 6,
+          "portfolioValueCents": 992294,
+          "profitCents": -7706,
+          "returnPercent": -0.7706000000000001,
+          "displayName": "Load Dino 3"
+        },
+        {
+          "playerId": "ba8483d0-92ff-43d4-a291-d4b8653eb115",
+          "joinOrder": 3,
+          "rank": 7,
+          "portfolioValueCents": 992071,
+          "profitCents": -7929,
+          "returnPercent": -0.7929,
+          "displayName": "Load Dino 4"
+        },
+        {
+          "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+          "joinOrder": 7,
+          "rank": 8,
+          "portfolioValueCents": 991659,
+          "profitCents": -8341,
+          "returnPercent": -0.8341,
+          "displayName": "Load Dino 8"
+        }
+      ],
+      "timeline": [
+        {
+          "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+          "sequence": 1722,
+          "dueAtMs": 1792167575735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2500,
+              "afterCents": 2625,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+          "sequence": 2128,
+          "dueAtMs": 1792167635735,
+          "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+          "effects": [
+            {
+              "symbol": "BONE",
+              "beforeCents": 2625,
+              "afterCents": 2756,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+          "sequence": 2555,
+          "dueAtMs": 1792167695735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4000,
+              "afterCents": 4200,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+          "sequence": 2975,
+          "dueAtMs": 1792167755735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4200,
+              "afterCents": 4410,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+          "sequence": 3381,
+          "dueAtMs": 1792167815735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7500,
+              "afterCents": 7875,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+          "sequence": 3801,
+          "dueAtMs": 1792167875735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 7875,
+              "afterCents": 8269,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+          "sequence": 4207,
+          "dueAtMs": 1792167935735,
+          "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+          "effects": [
+            {
+              "symbol": "FERN",
+              "beforeCents": 4410,
+              "afterCents": 4631,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+          "sequence": 4634,
+          "dueAtMs": 1792167995735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8269,
+              "afterCents": 8682,
+              "changeBps": 500
+            }
+          ]
+        },
+        {
+          "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+          "sequence": 5054,
+          "dueAtMs": 1792168055735,
+          "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+          "effects": [
+            {
+              "symbol": "AMBR",
+              "beforeCents": 8682,
+              "afterCents": 9116,
+              "changeBps": 500
+            }
+          ]
+        }
+      ],
+      "playerId": "6c6e4001-9f56-47a3-806d-676ab0106327",
+      "portfolio": {
+        "cashCents": 991659,
+        "holdings": {
+          "FERN": 0,
+          "AMBR": 0,
+          "VOLC": 0,
+          "BONE": 0
+        }
+      }
+    }
+  ],
+  "news": [
+    {
+      "sourceEventId": "07ca0bd3-9808-4d2f-9c6f-d35029e7c13a",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:1",
+      "sequence": 1722,
+      "dueAtMs": 1792167575735,
+      "appliedAtMs": 1792167575930,
+      "catalogEventId": "fossil-record-dig",
+      "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+      "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+      "commentary": "Fossil Finds celebrates its discovery. Paleontologists check the count.",
+      "iconId": "fossil",
+      "effects": [
+        {
+          "symbol": "BONE",
+          "beforeCents": 2500,
+          "afterCents": 2625,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "d068ab4e-46c9-495b-921c-272ffd761bd9",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:2",
+      "sequence": 2128,
+      "dueAtMs": 1792167635735,
+      "appliedAtMs": 1792167635901,
+      "catalogEventId": "fossil-record-dig",
+      "facts": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+      "headline": "Fossil Finds announces a record dig. Paleontologists demand a recount.",
+      "commentary": "Fossil Finds celebrates its discovery. Paleontologists check the count.",
+      "iconId": "fossil",
+      "effects": [
+        {
+          "symbol": "BONE",
+          "beforeCents": 2625,
+          "afterCents": 2756,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "10c77856-b283-41f4-a9e4-de2802cb4178",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:3",
+      "sequence": 2555,
+      "dueAtMs": 1792167695735,
+      "appliedAtMs": 1792167695942,
+      "catalogEventId": "fern-herd",
+      "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "commentary": "Hungry visitors arrive at Fern Farms. The herd has found its next feast.",
+      "iconId": "fern",
+      "effects": [
+        {
+          "symbol": "FERN",
+          "beforeCents": 4000,
+          "afterCents": 4200,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "07d9fbad-9c35-4bba-9b8b-c7a7c0ebd28c",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:4",
+      "sequence": 2975,
+      "dueAtMs": 1792167755735,
+      "appliedAtMs": 1792167755919,
+      "catalogEventId": "fern-herd",
+      "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "commentary": "Hungry visitors arrive at Fern Farms. The herd has found its next feast.",
+      "iconId": "fern",
+      "effects": [
+        {
+          "symbol": "FERN",
+          "beforeCents": 4200,
+          "afterCents": 4410,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "af52df45-3f7a-48e2-94af-468465230952",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:5",
+      "sequence": 3381,
+      "dueAtMs": 1792167815735,
+      "appliedAtMs": 1792167815921,
+      "catalogEventId": "amber-deposits",
+      "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "commentary": "Amber Works uncovers ancient treasures. The tram crew takes a closer look.",
+      "iconId": "amber",
+      "effects": [
+        {
+          "symbol": "AMBR",
+          "beforeCents": 7500,
+          "afterCents": 7875,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "72c1869c-ba04-4324-ba82-7e93ee50835c",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:6",
+      "sequence": 3801,
+      "dueAtMs": 1792167875735,
+      "appliedAtMs": 1792167875904,
+      "catalogEventId": "amber-deposits",
+      "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "commentary": "Amber Works uncovers ancient treasures. The tram crew takes a closer look.",
+      "iconId": "amber",
+      "effects": [
+        {
+          "symbol": "AMBR",
+          "beforeCents": 7875,
+          "afterCents": 8269,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "80f41ea4-530e-4bfa-b493-77fad58b289c",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:7",
+      "sequence": 4207,
+      "dueAtMs": 1792167935735,
+      "appliedAtMs": 1792167935887,
+      "catalogEventId": "fern-herd",
+      "facts": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "headline": "A brachiosaurus herd discovers Fern Farms’ all-you-can-eat valley.",
+      "commentary": "Hungry visitors arrive at Fern Farms. The herd has found its next feast.",
+      "iconId": "fern",
+      "effects": [
+        {
+          "symbol": "FERN",
+          "beforeCents": 4410,
+          "afterCents": 4631,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "ab315dd1-1e86-4c42-bfe3-13f027216967",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:8",
+      "sequence": 4634,
+      "dueAtMs": 1792167995735,
+      "appliedAtMs": 1792167995882,
+      "catalogEventId": "amber-deposits",
+      "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "commentary": "Amber Works uncovers ancient treasures. The tram crew takes a closer look.",
+      "iconId": "amber",
+      "effects": [
+        {
+          "symbol": "AMBR",
+          "beforeCents": 8269,
+          "afterCents": 8682,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    },
+    {
+      "sourceEventId": "825a7bf7-b2bf-4f9d-baba-81d6a836d3bf",
+      "roundId": "4932310e-a009-4de0-a53d-a73bea0cf6dd",
+      "scheduledEventId": "4932310e-a009-4de0-a53d-a73bea0cf6dd:9",
+      "sequence": 5054,
+      "dueAtMs": 1792168055735,
+      "appliedAtMs": 1792168055887,
+      "catalogEventId": "amber-deposits",
+      "facts": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "headline": "Fresh amber deposits uncovered beneath the Triceratops tram line.",
+      "commentary": "Amber Works uncovers ancient treasures. The tram crew takes a closer look.",
+      "iconId": "amber",
+      "effects": [
+        {
+          "symbol": "AMBR",
+          "beforeCents": 8682,
+          "afterCents": 9116,
+          "changeBps": 500
+        }
+      ],
+      "narrationStatus": "pending"
+    }
+  ],
+  "percentileUpperBoundsMs": {
+    "orderAckP95": 12795.947416000003,
+    "commitToClientP95": 100
+  },
+  "gates": {
+    "orderAckP95Under300": false,
+    "deliveryP95Under500": true,
+    "snapshotUnder1000": true,
+    "schedulerLagAtMost1000": true,
+    "noMissingDeliveries": true,
+    "allAcknowledgementsMeasured": true,
+    "completeWorkload": false,
+    "eightConnected": true,
+    "fullTenMinuteRound": true
+  },
+  "deploymentRegionAcceptance": "unverified; this isolated same-host run is supporting evidence only",
+  "workloadResult": {
+    "commandMix": {
+      "AMBR:buy:new": 251,
+      "AMBR:sell:new": 128,
+      "BONE:buy:new": 127,
+      "BONE:sell:new": 127,
+      "FERN:buy:new": 127,
+      "FERN:sell:new": 127,
+      "VOLC:buy:new": 124,
+      "VOLC:sell:new": 124,
+      "FERN:buy:retry": 2,
+      "BONE:sell:retry": 6,
+      "AMBR:buy:retry": 97,
+      "VOLC:sell:retry": 7,
+      "BONE:buy:retry": 2,
+      "AMBR:sell:retry": 6,
+      "FERN:sell:retry": 3
+    },
+    "submitted": 1258,
+    "completed": 1258,
+    "skipped": 86,
+    "outcomes": {
+      "FILLED": 1038,
+      "NO_LIQUIDITY_WITHIN_PROTECTION": 220
+    },
+    "elapsedThroughVerificationMs": 608148
+  },
+  "clientRoundTripMs": {
+    "count": 1258,
+    "p95": 10260.444833000001,
+    "max": 12796.17825
+  },
+  "lastPhase": "compare final clients and results",
+  "failures": [
+    "Gate failed: orderAckP95Under300",
+    "Gate failed: completeWorkload",
+    "Incomplete offered workload"
+  ],
+  "finishedAt": "2026-10-16T16:28:44.269Z",
+  "passed": false,
+  "submitted": 1258,
+  "completed": 1258
+}

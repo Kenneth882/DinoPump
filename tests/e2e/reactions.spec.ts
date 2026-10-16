@@ -275,6 +275,10 @@ test("room members exchange reactions and recover public activity without changi
         )
         .then((raw) => roundEndedSchema.parse(raw));
     const frozen = await Promise.all([results(host), results(guest)]);
+    // Results can render before recovery completes. Ephemeral reactions are
+    // intentionally cleared during resync, so synchronize both recipients first.
+    for (const page of [host, guest])
+      await expect(page.getByText("Connected", { exact: true })).toBeVisible();
     for (const page of [host, guest])
       await page.getByRole("button", { name: "Big roar", exact: true }).click();
     await expect(reactions(guest)).toHaveCount(2);

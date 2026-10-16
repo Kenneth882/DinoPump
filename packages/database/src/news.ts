@@ -35,11 +35,39 @@ export function newsFromBatch(
   });
 }
 
+export interface NarrationActivity {
+  previous: { sequence: number; atMs: number } | undefined;
+  trades: Pick<
+    Extract<EngineBatch["events"][number], { type: "TradeExecuted" }>,
+    "sequence" | "payload"
+  >[];
+}
+
 /** Approved narration inputs contain no credentials, future schedule, or player data. */
 export function narrationInput(
   news: NewsItem,
   round?: FrozenRound,
   preceding: EngineBatch[] = [],
+) {
+  const previous = [...preceding]
+    .reverse()
+    .find((batch) => batch.command.type === "ApplyScheduledEvent");
+  return narrationFromActivity(news, round, {
+    previous: previous && {
+      sequence: previous.events.at(-1)!.sequence,
+      atMs: previous.command.atMs,
+    },
+    trades: preceding
+      .flatMap((batch) => batch.events)
+      .filter((event) => event.type === "TradeExecuted"),
+  });
+}
+
+/** Live persistence supplies a bounded window; replay derives it from immutable batches. */
+export function narrationFromActivity(
+  news: NewsItem,
+  round: FrozenRound | undefined,
+  { previous, trades }: NarrationActivity,
 ) {
   const authored = {
     sourceEventId: news.sourceEventId,
@@ -50,13 +78,7 @@ export function narrationInput(
   };
   // Preserve the exact inputs of historical jobs written before context capture existed.
   if (!round) return authored;
-  const previous = [...preceding]
-    .reverse()
-    .find((batch) => batch.command.type === "ApplyScheduledEvent");
-  const afterSequence = previous?.events.at(-1)?.sequence ?? 0;
-  const trades = preceding
-    .flatMap((batch) => batch.events)
-    .filter((event) => event.type === "TradeExecuted");
+  const afterSequence = previous?.sequence ?? 0;
   return narrationInputSchema.parse({
     version: 1,
     sourceEventId: news.sourceEventId,
@@ -67,7 +89,7 @@ export function narrationInput(
     context: {
       capturedAtMs: news.appliedAtMs,
       elapsedMs: news.appliedAtMs - round.opensAtMs,
-      windowStartMs: previous?.command.atMs ?? round.opensAtMs,
+      windowStartMs: previous?.atMs ?? round.opensAtMs,
       afterSequence,
       throughSequence: news.sequence - 1,
       assets: news.effects.map((effect) => {
