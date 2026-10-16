@@ -1,3 +1,4 @@
+import { terminalView } from "../helpers/terminal.js";
 import { writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
@@ -194,6 +195,7 @@ test("room members exchange reactions and recover public activity without changi
     ).toBeVisible();
     const sentBeforeRecovery = sentReactions;
     dropReactionAck = false;
+    await terminalView(guest, "Trade");
     // Reaction traffic supplies no freshness evidence for the market channel.
     silenceMarket = true;
     const publicEvent = reactionPublishedSchema.parse(

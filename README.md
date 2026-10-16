@@ -12,6 +12,12 @@ For feature-specific work, use the [focused specification index](./docs/spec/REA
 
 Current status: the read-only Pangaea Exchange introduction loads four canonical assets and initial prices from the game service. Shared runtime schemas validate versioned assets, all documented gameplay defaults, and the authored event catalog. Invalid content prevents service startup; service outages show an unavailable state with Retry. PostgreSQL migrations and internal APIs now persist immutable synthetic round baselines, seeded schedules, and initialization events/projections. The pure engine generates covered deterministic bot quote ladders and executes protected buys and sells with exact settlement and complete immutable state transitions. Guests can create or join one durable eight-player lobby, mark ready, and watch a host-started countdown atomically open a funded round with deterministic quotes. Reconnect restores identity and private opening resources. Nine scheduled events now update reference prices and quotes atomically with immediate Daily Roar news and persisted narration jobs. Participants can now buy and sell through a minimal protected ticket with atomic durable outcomes, private ledgers, public executions/totals, and retry/reconnect reconciliation. Rounds now close once with immutable private/public results, and the host can return to the lobby for a fresh round. Optional fact-checked narration now uses a separate worker; see [provider setup](docs/commentary.md). See [results evidence](docs/validation/ticket-11-results.md). See [trading evidence](docs/validation/ticket-10-trading.md). See [guest lobby setup and contracts](docs/lobby.md).
 
+The live terminal now includes charts, covered quote depth, private portfolios,
+public rankings/activity and preset reactions. At narrow widths, use Market,
+Trade, Portfolio and News tabs with a persistent countdown and connection bar.
+See [desktop/360px journey evidence](docs/validation/ticket-19-journey.md) for
+keyboard, reconnect, no-key news and immutable-results validation and its limits.
+
 ## Local setup
 
 Use Node **24.21.0**, pnpm **10.34.5**, and Docker with Compose. The runtime is pinned in `.nvmrc`, the package manager in `package.json`, and dependencies in `pnpm-lock.yaml`. Next.js and React are installed locally in `apps/web`; TypeScript, ESLint, Prettier, Vitest, and Playwright are workspace development dependencies.

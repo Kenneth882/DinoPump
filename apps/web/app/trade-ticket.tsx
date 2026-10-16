@@ -18,8 +18,6 @@ export function TradeTicket({
   serverNow,
   enabled,
   pending,
-  result,
-  message,
   onSubmit,
 }: {
   round: RoundView;
@@ -28,8 +26,6 @@ export function TradeTicket({
   serverNow: number;
   enabled: boolean;
   pending: boolean;
-  result: OrderResult | null;
-  message: string;
   onSubmit: (request: OrderSubmit) => void;
 }) {
   const [side, setSide] = useState<OrderSubmit["side"]>("buy");
@@ -201,60 +197,77 @@ export function TradeTicket({
         {!best && <p>Unavailable liquidity for this side.</p>}
         <button disabled={!enabled || pending || !valid}>Submit {side}</button>
       </form>
-      <div role="status" data-testid="trade-result">
-        {pending ? (
-          <p>
-            Pending reconciliation. The exact original order will be retried.
-          </p>
-        ) : message ? (
-          <p>{message}</p>
-        ) : result ? (
-          <>
-            <p>
-              {result.status === "FILLED"
-                ? "Filled"
-                : result.status === "PARTIALLY_FILLED"
-                  ? "Partially filled"
-                  : result.status === "NO_LIQUIDITY_WITHIN_PROTECTION"
-                    ? "No liquidity within protection"
-                    : `Rejected: ${tradingErrorMessages[result.rejectionCode!]}`}
-            </p>
-            <p>
-              {result.filledQuantity} units executed; {result.remainingQuantity}{" "}
-              unfilled. Executed total: {money(result.totalValueCents)}. Average
-              fill price (rounded to cents):{" "}
-              {result.averagePrice
-                ? money(
-                    result.averagePrice.numeratorCents /
-                      result.averagePrice.denominatorUnits,
-                  )
-                : "No fills"}
-              .
-              {result.averagePrice && (
-                <span>
-                  {" "}
-                  Exact average: {result.averagePrice.numeratorCents}/
-                  {result.averagePrice.denominatorUnits} cents per unit.
-                </span>
-              )}
-            </p>
-            <p>
-              Cash after this order: {money(result.portfolio.cashCents)}.{" "}
-              {result.symbol} units after this order:{" "}
-              {result.portfolio.holdings[result.symbol]}.
-            </p>
-            <p>
-              Fills against game liquidity bot:{" "}
-              {result.fills
-                .map((f) => `${f.quantity} × ${money(f.priceCents)}`)
-                .join(", ") || "None"}
-              .
-            </p>
-          </>
-        ) : (
-          <p>No order submitted yet.</p>
-        )}
-      </div>
     </section>
+  );
+}
+
+/** Always mounted outside the tabs so a background outcome is announced once. */
+export function TradeFeedback({
+  pending,
+  result,
+  message,
+}: {
+  pending: boolean;
+  result: OrderResult | null;
+  message: string;
+}) {
+  return (
+    <div
+      role="status"
+      aria-atomic="true"
+      data-testid="trade-result"
+      className="trade-feedback"
+    >
+      {pending ? (
+        <p>Pending reconciliation. The exact original order will be retried.</p>
+      ) : message ? (
+        <p>{message}</p>
+      ) : result ? (
+        <>
+          <p>
+            {result.status === "FILLED"
+              ? "Filled"
+              : result.status === "PARTIALLY_FILLED"
+                ? "Partially filled"
+                : result.status === "NO_LIQUIDITY_WITHIN_PROTECTION"
+                  ? "No liquidity within protection"
+                  : `Rejected: ${tradingErrorMessages[result.rejectionCode!]}`}
+          </p>
+          <p>
+            {result.filledQuantity} units executed; {result.remainingQuantity}{" "}
+            unfilled. Executed total: {money(result.totalValueCents)}. Average
+            fill price (rounded to cents):{" "}
+            {result.averagePrice
+              ? money(
+                  result.averagePrice.numeratorCents /
+                    result.averagePrice.denominatorUnits,
+                )
+              : "No fills"}
+            .
+            {result.averagePrice && (
+              <span>
+                {" "}
+                Exact average: {result.averagePrice.numeratorCents}/
+                {result.averagePrice.denominatorUnits} cents per unit.
+              </span>
+            )}
+          </p>
+          <p>
+            Cash after this order: {money(result.portfolio.cashCents)}.{" "}
+            {result.symbol} units after this order:{" "}
+            {result.portfolio.holdings[result.symbol]}.
+          </p>
+          <p>
+            Fills against game liquidity bot:{" "}
+            {result.fills
+              .map((f) => `${f.quantity} × ${money(f.priceCents)}`)
+              .join(", ") || "None"}
+            .
+          </p>
+        </>
+      ) : (
+        <p>No order submitted yet.</p>
+      )}
+    </div>
   );
 }

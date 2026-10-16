@@ -4,7 +4,7 @@ Run `pnpm test:e2e` after installing Chromium with `pnpm exec playwright install
 
 `market-baseline.spec.ts` checks the service-to-web introduction at desktop and 360px widths, exact prices, fictional-market notices, malformed responses, and keyboard retry after an unavailable response. Successful-page screenshots are saved under `test-results/` for visual inspection. Outage browser tests intercept the web response; the service integration tests separately exercise a real closed service connection.
 
-These are supporting checks for ticket #1, not the complete player journey required by AC-17. Add multiplayer player-journey tests as gameplay is implemented.
+These are supporting checks for ticket #1; the complete multiplayer journey is covered by `journey.spec.ts` below.
 
 `lobby.spec.ts` demonstrates two independent guests creating/joining the same room,
 keyboard submission, real Socket.IO delivery, offline/reconnect and reload with
@@ -31,7 +31,7 @@ tape window, reconnect/reload, stale connectivity, and a 360px viewport. Empty
 quote ladders and missing freshness are synthetic WebSocket response faults;
 ordinary depth, executions, charts, and recovery use the real service. It saves
 `terminal-desktop.png` and `terminal-360.png`. This supports AC-03/04/06/09/10/17;
-it does not establish full release/load acceptance or the later mobile tab UI.
+it does not establish full release/load acceptance. Narrow-screen checks navigate the Market and Trade tabs explicitly.
 
 The harness discovers selected spec files and runs each with a fresh synthetic
 schema and clock. Each gets its own service process and active room, so multiple
@@ -46,7 +46,7 @@ reconnect/reload at close, immutable participant results after reset/new rounds,
 and shared no-trade winners. It checks received HTTP/WebSocket bodies for private
 order or credential leaks and the permitted public-total fields. Screenshots
 include marked portfolios and frozen results at desktop and 360px widths. These
-checks support AC-04/10/11/17, not the later load or complete mobile-tab gates.
+checks support AC-04/10/11/17, not the later load gate. Narrow-screen checks navigate the Portfolio and Trade tabs explicitly.
 
 `reactions.spec.ts` covers ticket #16 through the agreed browser/snapshot seam:
 preset reactions in lobby, open and results views, keyboard and reduced-motion
@@ -57,4 +57,25 @@ reset and a later round. It compares both owners' authoritative market projectio
 and immutable results, checks shared payload privacy, and saves desktop/360px
 screenshots. Run it alone with `pnpm test:e2e reactions.spec.ts`. Reaction loss is
 transient; committed activity must recover. These support AC-05/10/11/17 for this
-slice, not full release/load or mobile-tab acceptance.
+slice, not full release/load acceptance.
+
+`journey.spec.ts` covers ticket #19 with two independent contexts (1600px desktop
+and 360px with reduced motion): keyboard join/ready/start, tab arrows/Home/End,
+hidden panel focus exclusion, persistent form values across tabs and resizing,
+protected buys/sells, rejection feedback, a committed fill with delivery withheld
+until disconnect/reconnect, factual scheduled news, stale/resync pauses, and
+immutable closing results after reload and host reset. It checks narrow ticket
+bounds, visible focus, sticky countdown/connection/currency, status announcements,
+quiet news updates, holdings disclosures and reduced motion. Inputs and activation
+use keyboard events; initial focus is positioned with Playwright.
+
+Synthetic `news:update` packets exercise same-card enhancement and plain-text
+rendering without a provider/key. They do not persist narration; the commentary
+suites separately exercise durable publication/fallback. Time advances only via
+the test-owned clock; settlement and recovery use the real service/database.
+First-visit-to-first-trade timings are asserted below two minutes and attached as
+`first-trade-timing.json`; this automated usability smoke check does not replace
+an observed first-time human usability session. Screenshots and traces stay in
+`test-results/`. See [ticket #19 evidence](../../docs/validation/ticket-19-journey.md)
+for exact results and limits. Run `pnpm test:e2e tests/e2e/journey.spec.ts` alone,
+or `pnpm test:e2e` for all browser regressions.
