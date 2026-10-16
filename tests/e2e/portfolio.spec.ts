@@ -425,12 +425,14 @@ test("owners see marked portfolios and shared provisional ranks (AC-04/10/11/17)
           /"(secret_hash|sessionSecret|session_secret|secret)"/.test(body),
         ),
       ).toBe(false);
-      const publicBatches = bodies.filter((body) =>
-        body.startsWith('42["market:batch"'),
-      );
+      // Socket.IO event packets may include an acknowledgement ID after 42.
+      const publicBatches = bodies.flatMap((body) => {
+        const packet = /^42\d*(\["market:batch",.*)$/s.exec(body);
+        return packet ? [JSON.parse(packet[1]!)[1] as unknown] : [];
+      });
       expect(publicBatches.length).toBeGreaterThan(0);
-      for (const body of publicBatches) {
-        const batch = marketBatchSchema.parse(JSON.parse(body.slice(2))[1]);
+      for (const payload of publicBatches) {
+        const batch = marketBatchSchema.parse(payload);
         expect("portfolio" in batch).toBe(false);
         for (const total of batch.totals)
           expect(Object.keys(total).sort()).toEqual([

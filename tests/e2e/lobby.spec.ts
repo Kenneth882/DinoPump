@@ -341,7 +341,10 @@ test("two guests trade, reconnect, finish, reset and start a fresh round at 360p
         .map((q: { priceCents: number }) => q.priceCents),
     );
     await guest.getByLabel("Maximum buy price (cents)").fill(String(bestAsk));
-    await ticket.getByRole("button", { name: "Submit buy" }).focus();
+    const submitBuy = ticket.getByRole("button", { name: "Submit buy" });
+    await expect(submitBuy).toBeEnabled();
+    await submitBuy.focus();
+    await expect(submitBuy).toBeFocused();
     await guest.keyboard.press("Enter");
     await expect(guest.getByTestId("trade-result")).toContainText(
       "Partially filled",

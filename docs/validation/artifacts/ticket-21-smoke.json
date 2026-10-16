@@ -1,0 +1,215 @@
+{
+  "startedAt": "2026-10-16T16:09:56.050Z",
+  "mode": "smoke (not acceptance)",
+  "environment": {
+    "region": "local; deployment region unverified",
+    "host": "darwin 27.0.0",
+    "cpu": "Apple M1",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v24.21.0",
+    "topology": "separate load and game processes, same host; loopback PostgreSQL",
+    "llmKey": "not supplied; no worker or provider configured"
+  },
+  "workload": {
+    "players": 8,
+    "peakOrdersPerPlayerPerSecond": 5,
+    "peakSeconds": 10,
+    "subsequentOrdersPerPlayerPerSecond": 0.2,
+    "mix": "rotating four assets; 4 buys, 4 sells, 1 protected-zero buy, 1 exact retry per 10 attempts; quantity 1",
+    "clock": "Date.now; no acceleration or changed rules"
+  },
+  "timeline": [
+    {
+      "elapsedMs": 0,
+      "metrics": {
+        "counters": {
+          "orders_received": 8
+        },
+        "gauges": {
+          "ready": 1,
+          "ownership": 1,
+          "connected_players": 8,
+          "connected_sockets": 8
+        },
+        "histograms": {
+          "snapshot_ms": {
+            "count": 8,
+            "sum": 200.44516599999986,
+            "max": 35.32441600000004,
+            "buckets": {
+              "1": 0,
+              "5": 0,
+              "10": 0,
+              "25": 5,
+              "50": 8,
+              "100": 8,
+              "200": 8,
+              "300": 8,
+              "500": 8,
+              "1000": 8,
+              "5000": 8
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postgres": "18.6",
+  "loadStartedAt": "2026-10-16T16:10:02.573Z",
+  "metrics": {
+    "counters": {
+      "orders_received": 343
+    },
+    "gauges": {
+      "ready": 1,
+      "ownership": 1,
+      "connected_players": 8,
+      "connected_sockets": 8
+    },
+    "histograms": {
+      "snapshot_ms": {
+        "count": 16,
+        "sum": 384.92566499999737,
+        "max": 55.99287499999991,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 12,
+          "50": 15,
+          "100": 16,
+          "200": 16,
+          "300": 16,
+          "500": 16,
+          "1000": 16,
+          "5000": 16
+        }
+      },
+      "commit_to_client_ms": {
+        "count": 2496,
+        "sum": 89583.963402,
+        "max": 70.9773750000004,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 2448,
+          "100": 2496,
+          "200": 2496,
+          "300": 2496,
+          "500": 2496,
+          "1000": 2496,
+          "5000": 2496
+        }
+      },
+      "order_ack_ms": {
+        "count": 343,
+        "sum": 1759116.5925770004,
+        "max": 9259.161625,
+        "buckets": {
+          "1": 0,
+          "5": 0,
+          "10": 0,
+          "25": 0,
+          "50": 0,
+          "100": 1,
+          "200": 4,
+          "300": 7,
+          "500": 14,
+          "1000": 34,
+          "5000": 165
+        }
+      }
+    }
+  },
+  "workloadResult": {
+    "submitted": 343,
+    "completed": 343,
+    "skipped": 65,
+    "outcomes": {
+      "FILLED": 305,
+      "NO_LIQUIDITY_WITHIN_PROTECTION": 38
+    }
+  },
+  "clientRoundTripMs": {
+    "count": 343,
+    "p95": 9086.004292000001,
+    "max": 9260.408083999999
+  },
+  "streams": [
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    },
+    {
+      "batches": 312,
+      "cursor": 1501,
+      "sha256": "875018feb45aa16b6bf2ef97752d35ace8727a0c21a9c79f037cec3e67784679"
+    }
+  ],
+  "integrity": {
+    "replayMatchesProjectionAndResults": true,
+    "conservedNonnegativeCoveredResources": true,
+    "identicalClientStreams": true,
+    "scheduledEvents": 0,
+    "sequence": 1501,
+    "receipts": 312,
+    "roundId": "4603d21d-9ad3-4545-9d24-08a3759d6598"
+  },
+  "finalResults": null,
+  "news": [],
+  "percentileUpperBoundsMs": {
+    "orderAckP95": 9259.161625,
+    "commitToClientP95": 50
+  },
+  "gates": {
+    "orderAckP95Under300": false,
+    "deliveryP95Under500": true,
+    "snapshotUnder1000": true,
+    "schedulerLagAtMost1000": false,
+    "noMissingDeliveries": true,
+    "completeWorkload": false,
+    "eightConnected": true,
+    "fullTenMinuteRound": false
+  },
+  "deploymentRegionAcceptance": "unverified; this isolated same-host run is supporting evidence only",
+  "lastPhase": "compare final clients and results",
+  "failures": ["Incomplete offered workload"],
+  "finishedAt": "2026-10-16T16:10:23.957Z",
+  "passed": false,
+  "submitted": 343,
+  "completed": 343
+}
