@@ -24,11 +24,12 @@ Deployment, spending, and capacity validation have not occurred. See the
 
 ## Existing evidence and reuse boundary
 
-The [ticket #21 evidence](validation/ticket-21-acceptance.md) records a passing
-local sustained run: 23,992 submitted and acknowledged attempts, acknowledgement
-p95 upper bound 200ms, delivery p95 upper bound 25ms, snapshot maximum 208.5ms,
-and scheduler maximum 67ms. Deployment-region acceptance remains unverified.
-The live ticket remains open; its prerequisites #19 and #20 are closed.
+The [ticket #21 evidence](validation/ticket-21-acceptance.md) retains an earlier
+passing local run and later **failing full production rehearsals**. The latest
+submitted 21,602/24,000 offers and acknowledgement p95 exceeded 5,000ms against
+<300ms. Deployment-region acceptance remains unverified. #21 was closed at the
+user's request, not because those gates passed. See [#22 evidence](validation/ticket-22-setup.md)
+and the [demo plan](demo-deployment.md) for the narrower preparation scope.
 
 The [load guide](load-testing.md), [runner](../scripts/test-load.mjs),
 [eight-client workload](../tests/load/eight-client.ts), and

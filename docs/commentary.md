@@ -9,9 +9,9 @@ Neither a running worker nor an AI key is needed to play.
 ## Local setup
 
 Use the Node/pnpm versions pinned in the root package. Follow the database and web
-setup in [README](../README.md), then:
+setup in [README](../README.md), including `pnpm build:shared` before migrations, then:
 
-1. Choose a separate PostgreSQL login and unique password. Add
+1. Copy `.env.commentary.example` to `.env.commentary` without overwriting an existing file. Choose a separate PostgreSQL login and unique password. Set
    `COMMENTARY_DATABASE_URL` to a separate ignored root `.env.commentary`, targeting the same
    database/schema as `DATABASE_URL` with that separate login. URL-encode password
    characters, then run `chmod 600 .env.commentary`. Keep the game-service

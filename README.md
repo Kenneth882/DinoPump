@@ -35,6 +35,11 @@ production-ingress rehearsal is `pnpm test:staging-local --smoke`; it preserves
 the existing load gates. Production web configuration comes from the process
 environment; root `.env` loading is development-only.
 
+See [ticket #22 setup evidence](docs/validation/ticket-22-setup.md) and the
+[demo approval/runbook](docs/demo-deployment.md) for the small privately shared
+demo. Full acceptance remains blocked by the later #21 production-rehearsal
+failures; no hosted readiness is implied by local checks.
+
 ## Local setup
 
 Use Node **24.21.0**, pnpm **10.34.5**, and Docker with Compose. The runtime is pinned in `.nvmrc`, the package manager in `package.json`, and dependencies in `pnpm-lock.yaml`. Next.js and React are installed locally in `apps/web`; TypeScript, ESLint, Prettier, Vitest, and Playwright are workspace development dependencies.
@@ -46,14 +51,26 @@ nvm install
 nvm use
 npm install --global pnpm@10.34.5
 pnpm install --frozen-lockfile
+pnpm build:shared
 cp -n .env.example .env
 chmod 600 .env
 # Edit .env: replace both database password placeholders before first startup.
 pnpm db:up
 pnpm db:check
 pnpm db:migrate
+# Verify the safe repeat: should report that migrations are current.
+pnpm db:migrate
+cp -n .env.commentary.example .env.commentary
+chmod 600 .env.commentary
+# Edit .env.commentary: same database, separate login and unique password.
+pnpm db:worker-role
 pnpm dev
 ```
+
+In a second terminal, run `nvm use` then `pnpm worker` to start the separate
+restricted worker. No provider settings are required. All four components are
+now running: PostgreSQL, game, web, and worker. Check game and worker readiness
+with the [startup/recovery checklist](docs/setup-and-recovery.md).
 
 The read-only introduction and its tests do not require PostgreSQL or an AI key; for introduction-only use, omit or empty `DATABASE_URL` and skip the database commands. Lobby features require PostgreSQL and migrations. Start Docker Desktop before `pnpm db:up`. Open <http://127.0.0.1:3000> for the web app. The service responds at <http://127.0.0.1:3001/health>; this remains a liveness alias for `/healthz`. `/readyz` checks owned database access and supported authoritative state. `Ctrl+C` stops the development processes. Run `nvm use` when opening a new terminal in this repository; installing Node with nvm does not replace your system Node.
 
@@ -67,28 +84,30 @@ PostgreSQL **18.6** runs in Docker, binds only to `127.0.0.1:55432`, and stores 
 
 Run `pnpm db:verify` for disposable PostgreSQL migration, write/readback, rollback, retry, frozen-configuration, guest/session, room admission, and lifecycle checks. It uses a separate temporary database on port 55433 and never resets the development database. See [frozen round storage](docs/database.md) for migration readiness, API inputs, sequence storage, seeded selection, and validation limits.
 
-The game service exposes `GET /api/market-baseline`. Its public response contains only schema/content/rules versions and assets; configuration, events, and private data are excluded. The browser loads it through the same-origin Next.js route. Set `GAME_SERVER_ORIGIN` in the root `.env` to the service origin (default `http://127.0.0.1:3001`); keep it in sync if changing `GAME_SERVER_PORT`. Web development/start commands load the root `.env`; the origin stays server-side. Requests and responses are uncached, with a five-second upstream timeout and HTTP 503 on failure. The introduction remains visible without substituting bundled prices.
+The game service exposes `GET /api/market-baseline`. Its public response contains only schema/content/rules versions and assets; configuration, events, and private data are excluded. The browser loads it through the same-origin Next.js route. Set `GAME_SERVER_ORIGIN` in the root `.env` to the service origin (default `http://127.0.0.1:3001`); keep it in sync if changing `GAME_SERVER_PORT`. Web development loads the root `.env`; production build/start read the process environment. The origin stays server-side. Requests and responses are uncached, with a five-second upstream timeout and HTTP 503 on failure. The introduction remains visible without substituting bundled prices.
 
-`pnpm dev` first compiles shared packages, then watches those packages alongside the service and web app. The root test/typecheck commands also compile shared dependencies, so they work from a clean checkout. `pnpm build` needs neither a running game service nor a database. To run the built apps, run `pnpm --filter @dinopump/game-server start` and `pnpm --filter @dinopump/web start` in separate terminals after building.
+`pnpm dev` first compiles shared packages, then watches those packages alongside the service and web app. The root test/typecheck commands also compile shared dependencies, so they work from a clean checkout. `pnpm build` needs neither a running game service nor a database. For the exact three compiled application start commands, environment loading, safe shutdown and restart order, see [setup and recovery](docs/setup-and-recovery.md).
 
 ## Development commands
 
-| Command             | Purpose                                                          |
-| ------------------- | ---------------------------------------------------------------- |
-| `pnpm dev`          | Build/watch shared packages, web app, and game service           |
-| `pnpm build`        | Compile workspace packages and build the Next.js app             |
-| `pnpm lint`         | Run ESLint across application and tooling code                   |
-| `pnpm typecheck`    | Check application, package, and test/tool configuration types    |
-| `pnpm format:check` | Check formatting without changing files                          |
-| `pnpm format`       | Format implementation files; preserve specification extracts     |
-| `pnpm test`         | Run content/contract, engine, and HTTP integration tests         |
-| `pnpm test:e2e`     | Run baseline and two-guest trading/reconnect/news browser checks |
-| `pnpm check`        | Run lint, formatting, types, Vitest, and production build        |
-| `pnpm db:up`        | Start PostgreSQL and wait for its health check                   |
-| `pnpm db:check`     | Verify an authenticated database connection with `SELECT 1`      |
-| `pnpm db:migrate`   | Apply pending migrations; safely repeat to confirm readiness     |
-| `pnpm db:verify`    | Run isolated PostgreSQL integration tests and clean up           |
-| `pnpm db:stop`      | Stop PostgreSQL without deleting its volume                      |
+| Command               | Purpose                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`            | Build/watch shared packages, web app, and game service             |
+| `pnpm build`          | Compile workspace packages and build the Next.js app               |
+| `pnpm lint`           | Run ESLint across application and tooling code                     |
+| `pnpm typecheck`      | Check application, package, and test/tool configuration types      |
+| `pnpm format:check`   | Check formatting without changing files                            |
+| `pnpm format`         | Format implementation files; preserve specification extracts       |
+| `pnpm test`           | Run content/contract, engine, and HTTP integration tests           |
+| `pnpm test:e2e`       | Run baseline and two-guest trading/reconnect/news browser checks   |
+| `pnpm check`          | Run lint, formatting, types, Vitest, and production build          |
+| `pnpm db:up`          | Start PostgreSQL and wait for its health check                     |
+| `pnpm db:check`       | Verify an authenticated database connection with `SELECT 1`        |
+| `pnpm db:migrate`     | Apply pending migrations; safely repeat to confirm readiness       |
+| `pnpm db:verify`      | Run isolated PostgreSQL integration tests and clean up             |
+| `pnpm db:worker-role` | Provision a separate restricted local worker login after migration |
+| `pnpm worker`         | Start the independent worker from `.env.commentary`                |
+| `pnpm db:stop`        | Stop PostgreSQL without deleting its volume                        |
 
 Install the Playwright browser once per machine with `pnpm exec playwright install chromium`. The E2E harness starts disposable PostgreSQL on 55433, a web app on 3100 with a separate `.next-e2e` directory, and a game service on 3101. Keep those ports free; do not run `db:verify` simultaneously. See [lobby verification](docs/lobby.md#validation-boundaries).
 

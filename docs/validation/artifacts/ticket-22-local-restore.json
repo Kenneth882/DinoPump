@@ -1,0 +1,13 @@
+{
+  "roundId": "28d405a6-a1cb-4ad9-9d88-7ef112eb3e91",
+  "hash": "fd5e6120478a5615627aca3b14f4dd98b1bbe525d6a93e3ff04f6f0bf920b7ee",
+  "news": 9,
+  "filledQuantity": 150,
+  "clock": "accelerated synthetic fixture",
+  "restoredReplayHash": "fd5e6120478a5615627aca3b14f4dd98b1bbe525d6a93e3ff04f6f0bf920b7ee",
+  "archiveSha256": "7c4e592a62f92086975db84f5c519e04bbcb7161ea8b7e2a7df47077def93942",
+  "ready": true,
+  "source": "local synthetic dinopump:55436",
+  "target": "local synthetic dinopump_restore_check:55436",
+  "providerRestoreVerified": false
+}

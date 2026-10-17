@@ -1,0 +1,52 @@
+# Apply only after approving docs/demo-deployment.md. No auto-deploys.
+# Native Node services: no persistent app disks and no commentary worker.
+previews:
+  generation: off
+services:
+  - type: pserv
+    name: dinopump-demo-game
+    runtime: node
+    region: virginia
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 30
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build:shared && pnpm --filter @dinopump/game-server build
+    startCommand: node apps/game-server/dist/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GAME_SERVER_HOST
+        value: 0.0.0.0
+      - key: WEB_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        value: dinopump_demo
+      - key: DATABASE_SSL_CA_FILE
+        value: /etc/secrets/supabase-ca.pem
+  - type: web
+    name: dinopump-demo-web
+    runtime: node
+    region: virginia
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    healthCheckPath: /api/market-baseline
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm build:shared && pnpm --filter @dinopump/web build
+    startCommand: pnpm --filter @dinopump/web start
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: GAME_SERVER_HOSTPORT
+        fromService:
+          name: dinopump-demo-game
+          type: pserv
+          property: hostport
