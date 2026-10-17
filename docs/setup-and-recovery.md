@@ -178,6 +178,9 @@ They do not consume the development `.env` database. `db:verify` includes real
 crash/restart and ownership tests (AC-10/12/14/15); browser suites include two
 sessions, 360px and a no-key round (AC-13/17/18), using accelerated test time.
 The staging smoke checks production HTTPS/proxy/cookies; it is not a full round.
+It also needs the `openssl` CLI with `req -addext` support (validated here with
+OpenSSL 3.5.6); check `openssl version` before running it. This is a local
+test-certificate dependency, not a hosted runtime dependency.
 
 For real ten-minute evidence run `pnpm test:load`; for the unchanged full capacity
 gate run `pnpm test:load --sustained` or the approved hosted staging adapter.

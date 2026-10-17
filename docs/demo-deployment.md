@@ -12,23 +12,27 @@ anyone with a lobby code can request to join. The user confirmed this boundary.
 Start with two invited people and ordinary manual trading. The existing 2–8
 player rules, ten-minute duration and rate limits remain unchanged. Do not market
 this as validated eight-player peak capacity. #21 remains an acceptance blocker
-despite its administrative closure.
+despite its administrative closure. The #22 local HTTPS smoke also failed the
+unchanged acknowledgement target (694.3ms p95 upper bound, all 480 offers
+completed); it establishes no capacity sign-off.
 
 ## Exact proposal to approve before spending
 
-| Resource                         | Configuration                                                                                                                                                    | Base cost / lifetime                                                                                           |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Supabase project `dinopump-demo` | Dedicated Pro organization/project, Micro (shared CPU, 1GB RAM), North Virginia `us-east-1`; Data API disabled; session pooler port 5432; schema `dinopump_demo` | $25/month organization base including one Micro within its $10 compute credit; retain until explicitly retired |
-| Render `dinopump-demo-game`      | Private Node service, Virginia, `0.5c-512mb`, one instance, auto-deploy off, no disk                                                                             | $7/month                                                                                                       |
-| Render `dinopump-demo-web`       | Public Node web service, Virginia, `0.5c-512mb`, one instance, auto-deploy off, included HTTPS address, no disk                                                  | $7/month                                                                                                       |
-| Render workspace                 | Existing Hobby workspace, no paid workspace upgrade                                                                                                              | $0 base                                                                                                        |
+| Resource                         | Configuration                                                                                                                                                                    | Base cost / lifetime                                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Supabase project `dinopump-demo` | Dedicated project in the existing Pro organization, Micro (shared CPU, 1GB RAM), North Virginia `us-east-1`; Data API disabled; session pooler port 5432; schema `dinopump_demo` | $25/month organization base including one Micro within its $10 compute credit; retain until explicitly retired |
+| Render `dinopump-demo-game`      | Private Node service, Virginia, `0.5c-512mb`, one instance, auto-deploy off, no disk                                                                                             | $7/month                                                                                                       |
+| Render `dinopump-demo-web`       | Public Node web service, Virginia, `0.5c-512mb`, one instance, auto-deploy off, included HTTPS address, no disk                                                                  | $7/month                                                                                                       |
+| Render workspace                 | Existing Hobby workspace, no paid workspace upgrade                                                                                                                              | $0 base                                                                                                        |
 
 **Total base: $39/month**, plus tax and metered usage. This assumes one Micro
 consumes the included compute credit. If an existing Pro organization already
 uses that credit, a second Micro adds approximately $10/month; do not assume the
 $39 total still applies. Record the chosen organization/project ID, credit usage,
-account quote and public hostname before approval. No account billing quote has
-been inspected. The planning ceiling is $50 all-in/month; it is not a universal
+account quote and public hostname before approval. The local account-preparation record is for **staging**, not this demo. Do not
+repurpose or delete that recorded project as part of demo creation. Its existence,
+current billing and organization credit usage must be verified before approval;
+no account billing quote has been inspected. The planning ceiling is $50 all-in/month; it is not a universal
 provider hard cap. Stop and request a revised plan if the quote/forecast exceeds
 it. Do not silently upgrade capacity. Keep Supabase's spend cap on and inspect
 both providers' usage; compute and some charges are outside that cap.
