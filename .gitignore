@@ -9,7 +9,10 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.commentary.example
 .DS_Store
 *.log
 
 .next-e2e/
+
+.private-backups/

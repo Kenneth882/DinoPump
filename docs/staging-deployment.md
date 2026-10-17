@@ -46,9 +46,8 @@ plan IDs. Provider/account quotes take precedence over this estimate.
 
 [deploy/render.staging.yaml](../deploy/render.staging.yaml) declares all three
 Render services. It is a reviewable template; creating a Blueprint immediately
-creates billable services. Auto-deploys and previews are off. Use the approved
-commit on the current `ticket21` branch; pushing it requires approval. Do not
-silently deploy `main` from the earlier account-preparation notes.
+creates billable services. Auto-deploys and previews are off. PR #42 is merged. Select the explicitly approved source commit/branch in Render;
+pushing local #22 work still requires approval. Do not silently deploy another revision.
 
 Before creating services, choose the available public HTTPS name and record it.
 Use that exact origin for game `WEB_ORIGIN` and runner `DINOPUMP_LOAD_ORIGIN`.
@@ -196,8 +195,8 @@ Verify a backup/restore into an explicitly approved disposable target, then repl
 and compare its frozen results; never restore over the source. A daily backup
 may not yet exist during a short window. Until restore is actually rehearsed,
 record it as unverified for #22. No extra paid restore project is preauthorized.
-No history/result pruning is introduced. Keep #21 open while any of its required
-gates remain unverified, and keep broader #22 release/restore gates separate.
+No history/result pruning is introduced. #21 was administratively closed at the user's request with failed/unverified gates. Preserve those failures and keep broader
+#22 release/restore gates separate. See [current demo preparation](demo-deployment.md).
 
 ## Teardown proposal
 

@@ -8,10 +8,14 @@ and [milestone 6](../spec/implementation.md). Both listed blockers, #19 and #20,
 were closed when implementation began. Existing duplicate-file deletions were
 preserved and excluded from this work.
 
-**Local sustained performance passes; release readiness is not established.**
-The eight-client ten-minute peak workload passes all local gates after this fix.
-Deployment-region measurement remains unrun.
-No acceptance threshold, gameplay rule or frozen-round configuration was changed.
+**Current status: full acceptance remains blocked.** An earlier loopback sustained
+run passed; the later full production rehearsals below failed acknowledgement
+latency and complete offered workload. The latest submitted 21,602/24,000 offers
+with acknowledgement p95 above 5,000ms. Deployment-region validation is unrun.
+#21 was closed at the user's request; closure is not acceptance evidence.
+Historical measurements and artifacts below are retained unchanged. No threshold,
+gameplay rule or frozen-round configuration was changed. For the narrower demo
+preparation, see [ticket #22](ticket-22-setup.md).
 
 ## Reproduction
 

@@ -6,7 +6,10 @@ AC-05/08/10/14/15/18. Gameplay rules and active-round configuration are unchange
 
 ## Probes and collection
 
-The game service binds loopback on `GAME_SERVER_PORT` (default 3001). The worker
+The game service defaults to loopback on `GAME_SERVER_PORT` (default 3001).
+Hosted game uses `GAME_SERVER_HOST=0.0.0.0` and Render `PORT`, which takes priority.
+Keep that service private; see the [demo runbook](demo-deployment.md) and
+[local startup/recovery procedure](setup-and-recovery.md). The worker
 binds loopback on `COMMENTARY_HEALTH_PORT` (default 3002; override in the ignored
 `.env.commentary`). Both expose uncached, GET-only JSON probes:
 
